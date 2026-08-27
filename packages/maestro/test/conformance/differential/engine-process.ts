@@ -32,8 +32,31 @@ export function classifyAgentDeviceFailure(stdout: string): 'behavioral' | 'infr
   }
 }
 
-export function runAgentDeviceEngine(cliPath: string, args: string[]): EngineResult {
-  const result = spawnSync(process.execPath, [cliPath, ...args, '--json'], {
+/** What the device workflows set AGENT_DEVICE_CLI to, and the default here. */
+const DEFAULT_AGENT_DEVICE_CLI = '--experimental-strip-types src/bin.ts';
+
+/**
+ * AGENT_DEVICE_CLI is a command *line* — node flags plus the entry script —
+ * mirroring AGENT_DEVICE_PERF_CLI in scripts/perf/config.ts. Tokenizing it here,
+ * beside the spawn it feeds, is what keeps `runAgentDeviceEngine`'s precondition
+ * satisfiable: no caller downstream holds a string that is neither a path nor an
+ * argv. A path with spaces is unreachable through the variable, as in the perf
+ * harness; pass it as a single array element instead.
+ */
+export function resolveAgentDeviceCliArgv(value: string | undefined): string[] {
+  return (value?.trim() || DEFAULT_AGENT_DEVICE_CLI).split(/\s+/);
+}
+
+/**
+ * `cliArgv` is a node argv — node flags plus the entry script — never a single
+ * command string. AGENT_DEVICE_CLI carries `--experimental-strip-types src/bin.ts`
+ * on every device workflow, so a lone `string` here spawns node with that whole
+ * line as one option ("bad option: --experimental-strip-types src/bin.ts") and
+ * every scenario infrastructure-fails. By the time a path reaches this array it
+ * is already its own element, spaces and all.
+ */
+export function runAgentDeviceEngine(cliArgv: readonly string[], args: string[]): EngineResult {
+  const result = spawnSync(process.execPath, [...cliArgv, ...args, '--json'], {
     cwd: process.cwd(),
     encoding: 'utf8',
   });

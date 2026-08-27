@@ -174,7 +174,7 @@ test('an ordinary Maestro process failure cannot satisfy a behavioral waiver', (
       {
         dryRun: false,
         maestroBin: `${process.execPath} ${maestroCli}`,
-        agentDeviceCli,
+        agentDeviceCliArgv: [agentDeviceCli],
       },
     );
 

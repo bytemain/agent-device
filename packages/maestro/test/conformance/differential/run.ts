@@ -18,7 +18,12 @@ import {
   type DivergenceSignature,
 } from './scenarios.ts';
 import { type InvariantResult, evaluateInvariants, readTrace } from './invariants.ts';
-import { type EngineResult, runAgentDeviceEngine, runMaestroEngine } from './engine-process.ts';
+import {
+  type EngineResult,
+  resolveAgentDeviceCliArgv,
+  runAgentDeviceEngine,
+  runMaestroEngine,
+} from './engine-process.ts';
 import {
   printDryRun,
   printRunSummary,
@@ -38,15 +43,18 @@ export type RunnerOptions = {
   dryRun: boolean;
   only?: string;
   maestroBin: string;
-  agentDeviceCli: string;
+  /**
+   * Node argv for the agent-device CLI — flags and entry script as separate
+   * elements, not one command line. See `resolveAgentDeviceCliArgv`.
+   */
+  agentDeviceCliArgv: readonly string[];
 };
 
 export function parseRunnerArgs(argv: readonly string[]): RunnerOptions {
   const options: RunnerOptions = {
     dryRun: false,
     maestroBin: process.env.MAESTRO_BIN ?? 'maestro',
-    // Mirror the perf harness convention (AGENT_DEVICE_PERF_CLI).
-    agentDeviceCli: process.env.AGENT_DEVICE_CLI ?? '--experimental-strip-types src/bin.ts',
+    agentDeviceCliArgv: resolveAgentDeviceCliArgv(process.env.AGENT_DEVICE_CLI),
     traceRoot: process.env.AGENT_DEVICE_ARTIFACTS_DIR,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -170,7 +178,7 @@ export function runScenario(
   const maestro = runMaestroEngine(options.maestroBin, ['test', flowPath, ...platformArgs]);
   // `--maestro` is required: without it `test` rejects a .yaml flow outright
   // ("test does not support this file type"). Matches scripts/run-test-app-maestro-suite.mjs.
-  const agentDevice = runAgentDeviceEngine(options.agentDeviceCli, [
+  const agentDevice = runAgentDeviceEngine(options.agentDeviceCliArgv, [
     'test',
     flowPath,
     '--maestro',
