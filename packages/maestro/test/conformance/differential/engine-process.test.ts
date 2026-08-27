@@ -43,33 +43,24 @@ test('agent-device execution accepts a CLI path containing spaces', () => {
   }
 });
 
-// The regression the nightly ran into for two days: AGENT_DEVICE_CLI carries node
-// flags, and passing that line to node as one argument aborts before the CLI loads
-// ("bad option: --experimental-strip-types src/bin.ts"), which every scenario then
-// reports as an engine infrastructure failure rather than a divergence. Running the
-// workflow's own shape end to end is what pins it — a fixture path with no flag
-// cannot tell an argv from a command line.
-test('agent-device execution spawns node flags as their own arguments', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-device-engine-argv-'));
-  const cliPath = path.join(root, 'cli.ts');
-  try {
-    fs.writeFileSync(cliPath, 'const code: number = 0;\nprocess.exit(code);\n');
-    assert.deepEqual(
-      runAgentDeviceEngine(resolveAgentDeviceCliArgv(`--experimental-strip-types ${cliPath}`), []),
-      { engine: 'agent-device', outcome: 'pass', exitCode: 0 },
-    );
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('the agent-device CLI argv is the workflow command line, tokenized', () => {
-  // The fallback is the source-CLI line the device workflows pass explicitly, so a
-  // hand run without the variable reproduces CI rather than looking for a dist build.
-  assert.deepEqual(resolveAgentDeviceCliArgv(undefined), [
+test('the CLI argv keeps node flags and the entry script apart', () => {
+  // The default is the source CLI the device workflows name explicitly.
+  assert.deepEqual(resolveAgentDeviceCliArgv(undefined, undefined), [
     '--experimental-strip-types',
     'src/bin.ts',
   ]);
-  assert.deepEqual(resolveAgentDeviceCliArgv('  '), ['--experimental-strip-types', 'src/bin.ts']);
-  assert.deepEqual(resolveAgentDeviceCliArgv(' bin/agent-device.mjs '), ['bin/agent-device.mjs']);
+  // An entry path is never split, so spaces in it survive.
+  assert.deepEqual(resolveAgentDeviceCliArgv('/tmp/agent device.mjs', ''), [
+    '/tmp/agent device.mjs',
+  ]);
+  assert.deepEqual(resolveAgentDeviceCliArgv('/tmp/agent device.mjs', undefined), [
+    '--experimental-strip-types',
+    '/tmp/agent device.mjs',
+  ]);
+  // Flags are split, which is exact because a node flag cannot contain a space.
+  assert.deepEqual(resolveAgentDeviceCliArgv('bin/x.mjs', '--no-warnings  --enable-source-maps'), [
+    '--no-warnings',
+    '--enable-source-maps',
+    'bin/x.mjs',
+  ]);
 });

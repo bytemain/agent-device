@@ -32,7 +32,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AGENT_DEVICE_CLI: '--experimental-strip-types src/bin.ts'
+  # Entry script and node flags are separate on purpose: one variable cannot
+  # encode both without either corrupting a path that contains spaces or
+  # spawning the whole line as a single node option.
+  AGENT_DEVICE_CLI: 'src/bin.ts'
+  AGENT_DEVICE_CLI_NODE_FLAGS: '--experimental-strip-types'
   DIFFERENTIAL_ONLY: ${{ github.event.inputs.only || '' }}
   # CI should not phone home, and it keeps `maestro --version` to just the
   # version instead of prefixing an analytics notice.

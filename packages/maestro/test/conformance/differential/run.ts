@@ -54,7 +54,10 @@ export function parseRunnerArgs(argv: readonly string[]): RunnerOptions {
   const options: RunnerOptions = {
     dryRun: false,
     maestroBin: process.env.MAESTRO_BIN ?? 'maestro',
-    agentDeviceCliArgv: resolveAgentDeviceCliArgv(process.env.AGENT_DEVICE_CLI),
+    agentDeviceCliArgv: resolveAgentDeviceCliArgv(
+      process.env.AGENT_DEVICE_CLI,
+      process.env.AGENT_DEVICE_CLI_NODE_FLAGS,
+    ),
     traceRoot: process.env.AGENT_DEVICE_ARTIFACTS_DIR,
   };
   for (let i = 0; i < argv.length; i += 1) {

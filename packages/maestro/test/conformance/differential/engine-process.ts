@@ -32,28 +32,38 @@ export function classifyAgentDeviceFailure(stdout: string): 'behavioral' | 'infr
   }
 }
 
-/** What the device workflows set AGENT_DEVICE_CLI to, and the default here. */
-const DEFAULT_AGENT_DEVICE_CLI = '--experimental-strip-types src/bin.ts';
-
 /**
- * AGENT_DEVICE_CLI is a command *line* — node flags plus the entry script —
- * mirroring AGENT_DEVICE_PERF_CLI in scripts/perf/config.ts. Tokenizing it here,
- * beside the spawn it feeds, is what keeps `runAgentDeviceEngine`'s precondition
- * satisfiable: no caller downstream holds a string that is neither a path nor an
- * argv. A path with spaces is unreachable through the variable, as in the perf
- * harness; pass it as a single array element instead.
+ * The agent-device CLI the differential drives, as two variables that cannot be
+ * confused for one another:
+ *
+ *   AGENT_DEVICE_CLI            the entry script — ONE path, never split, so a
+ *                               path containing spaces survives verbatim
+ *   AGENT_DEVICE_CLI_NODE_FLAGS node flags — split on whitespace, which is exact
+ *                               because a node flag cannot contain a space
+ *
+ * One variable holding `--experimental-strip-types src/bin.ts` cannot express
+ * both: splitting it corrupts `/tmp/agent device.mjs`, and not splitting it
+ * spawns the whole line as a single node option — the bug that infrastructure-
+ * failed every scenario from 2026-08-25. Set the flags variable to the empty
+ * string to run an entry that needs none (a built `bin/agent-device.mjs`).
  */
-export function resolveAgentDeviceCliArgv(value: string | undefined): string[] {
-  return (value?.trim() || DEFAULT_AGENT_DEVICE_CLI).split(/\s+/);
+const DEFAULT_CLI_ENTRY = 'src/bin.ts';
+const DEFAULT_CLI_NODE_FLAGS = '--experimental-strip-types';
+
+export function resolveAgentDeviceCliArgv(
+  entry: string | undefined,
+  nodeFlags: string | undefined,
+): string[] {
+  const flags = (nodeFlags ?? DEFAULT_CLI_NODE_FLAGS).split(/\s+/).filter(Boolean);
+  return [...flags, entry?.trim() || DEFAULT_CLI_ENTRY];
 }
 
 /**
- * `cliArgv` is a node argv — node flags plus the entry script — never a single
- * command string. AGENT_DEVICE_CLI carries `--experimental-strip-types src/bin.ts`
- * on every device workflow, so a lone `string` here spawns node with that whole
- * line as one option ("bad option: --experimental-strip-types src/bin.ts") and
- * every scenario infrastructure-fails. By the time a path reaches this array it
- * is already its own element, spaces and all.
+ * `cliArgv` is a node argv — flags and entry script as separate elements, built
+ * by `resolveAgentDeviceCliArgv`. Never a command line: spawning one as a single
+ * argument aborts node before the CLI loads ("bad option: --experimental-strip-
+ * types src/bin.ts"), which every scenario then reports as an infrastructure
+ * failure. An entry path reaching this array is already its own element.
  */
 export function runAgentDeviceEngine(cliArgv: readonly string[], args: string[]): EngineResult {
   const result = spawnSync(process.execPath, [...cliArgv, ...args, '--json'], {
