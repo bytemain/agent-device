@@ -110,6 +110,10 @@ export function createDaemonMaestroSnapshotSource(
       }
       const initialSnapshot =
         cached?.generation === context.generation ? cached.snapshot : stabilityBaseline?.snapshot;
+      // Deliberately not counted in `settleTimeouts`: this settles the PREDECESSOR's
+      // mutation, deferred until some later step needs a stable tree. Charging its
+      // outcome to whichever step happens to trigger it would misattribute one
+      // command's stability to another, and the metric is read per step.
       const stable = await waitForTypedSnapshotStability({
         timeoutMs: MAESTRO_RUNTIME_ADAPTER_POLICY.settleTimeoutMs,
         context,

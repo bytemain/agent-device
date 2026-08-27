@@ -235,6 +235,31 @@ test('compares snapshots before sleeping and captures once beyond a zero settle 
   expect(result.snapshot.nodes[0]?.value).toBe('settled');
 });
 
+// Both exits used to return the same shape, so nothing downstream could tell a
+// settled UI from an exhausted budget — which is why the differential had to time
+// the whole step from outside and got a cold snapshot path wrong (#2069).
+test('reports which exit the stability loop took', async () => {
+  const clock = { value: 0 };
+
+  const latched = await waitForTypedSnapshotStability({
+    timeoutMs: 1_000,
+    context: { generation: 0, env: {} },
+    snapshot: async () => makeSnapshot([{ index: 0, type: 'Text', value: 'stable' }]),
+    dependencies: makeDependencies(clock),
+  });
+  expect(latched.settled).toBe(true);
+
+  let value = 0;
+  const exhausted = await waitForTypedSnapshotStability({
+    timeoutMs: 1_000,
+    context: { generation: 0, env: {} },
+    // Never twice the same: the loop can only leave by running out of budget.
+    snapshot: async () => makeSnapshot([{ index: 0, type: 'Text', value: `moving ${++value}` }]),
+    dependencies: makeDependencies(clock),
+  });
+  expect(exhausted.settled).toBe(false);
+});
+
 test('confirms an unchanged hierarchy across one polling interval', async () => {
   const clock = { value: 0 };
   let captures = 0;

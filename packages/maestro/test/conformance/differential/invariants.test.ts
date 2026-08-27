@@ -25,6 +25,56 @@ const stop = (command: string, durationMs: number, step = 1) => ({
   durationMs,
 });
 
+// The detector the settle-after-tap scenario actually declares. It asks the
+// stability loop which exit it took, so a slow-but-latched tap on a cold CI
+// simulator is not a bug-class-4 report — the failure the wall-clock bound gave
+// on two runs of identical engine code.
+const SETTLE_TIMEOUT_INVARIANT: Invariant = {
+  kind: 'metricAtMost',
+  command: 'tapOn',
+  metric: 'settleTimeouts',
+  max: 0,
+  because: 'test',
+};
+
+/** A completed step carrying the settle metric the detector reads. */
+const settleStep = (command: string, durationMs: number, settleTimeouts: number, step = 1) => ({
+  type: 'replay_action_stop',
+  step,
+  command,
+  ok: true,
+  durationMs,
+  resultTiming: { hierarchyCaptures: 1, screenshotCaptures: 0, tapRetries: 0, settleTimeouts },
+});
+
+test('a stability loop that latched holds the settle invariant however slow the step', () => {
+  // 3344ms: the real CI value that failed the wall-clock bound with a loop that
+  // latched on its first comparison.
+  const result = evaluateInvariant([settleStep('tapOn', 3344, 0)], SETTLE_TIMEOUT_INVARIANT);
+  assert.equal(result.status, 'held');
+});
+
+test('a stability loop that never latched violates it however fast the step', () => {
+  const result = evaluateInvariant([settleStep('tapOn', 120, 1)], SETTLE_TIMEOUT_INVARIANT);
+  assert.equal(result.status, 'violated');
+  assert.match(result.detail, /settleTimeouts was 1/);
+});
+
+test('another command running out of settle budget does not implicate the tap', () => {
+  // A scroll settle bounded by the caller's remaining time ends unlatched
+  // legitimately; the invariant reads its own command only.
+  const result = evaluateInvariant(
+    [settleStep('scroll', 900, 2), settleStep('tapOn', 3344, 0, 2)],
+    SETTLE_TIMEOUT_INVARIANT,
+  );
+  assert.equal(result.status, 'held');
+});
+
+test('a trace with no settle metric reports no-data rather than passing', () => {
+  const result = evaluateInvariant([stop('tapOn', 350)], SETTLE_TIMEOUT_INVARIANT);
+  assert.equal(result.status, 'no-data');
+});
+
 test('a tap that latches early holds the settle invariant', () => {
   // Healthy: Android ~350ms, iOS ~800-1100ms — well under the 2000ms budget.
   const result = evaluateInvariant([stop('tapOn', 350)], SETTLE_INVARIANT);
@@ -83,10 +133,15 @@ test('bug class 4 has a machine-checkable invariant, not just outcome parity', (
   const settle = DIFFERENTIAL_SCENARIOS.find((scenario) => scenario.bugClass === 4);
   const invariant = settle?.engineInvariants?.[0];
   assert.ok(invariant, 'settle scenario must carry an engine-side invariant');
-  assert.equal(invariant?.kind, 'stepDurationBelow');
-  assert.equal(
-    invariant?.kind === 'stepDurationBelow' ? invariant.maxMs : undefined,
-    MAESTRO_DEFAULT_SETTLE_TIMEOUT_MS,
+  // The detector must read the loop's own outcome. A wall-clock bound on the step
+  // cannot state this: the step also pays for target resolution and dispatch, so
+  // it goes red on a cold snapshot path while the loop latched immediately.
+  assert.equal(invariant?.kind, 'metricAtMost');
+  assert.deepEqual(
+    invariant?.kind === 'metricAtMost'
+      ? { metric: invariant.metric, max: invariant.max }
+      : undefined,
+    { metric: 'settleTimeouts', max: 0 },
   );
 });
 

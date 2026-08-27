@@ -49,6 +49,16 @@ export type MaestroSnapshotSource = {
 export type StableMaestroSnapshot = {
   readonly snapshot: SnapshotState;
   readonly signature: string;
+  /**
+   * Whether the loop latched — two consecutive captures with the same signature
+   * — or gave up because the budget ran out. Both exits used to return the same
+   * shape, so no caller could tell a settled UI from an exhausted one, and the
+   * only way to ask "did the stability loop latch" was to time the whole step
+   * from outside and compare against the budget. That proxy also counts target
+   * resolution and dispatch, which is why it read 2710-3344ms on a CI simulator
+   * for a tap whose loop latched on its first comparison.
+   */
+  readonly settled: boolean;
 };
 
 type MaestroTargetResolutionMode = 'tap' | 'swipe' | 'observe';
@@ -237,12 +247,12 @@ export async function waitForTypedSnapshotStability(params: {
     );
     const snapshot = await captureRetriableMaestroSnapshot(params, deadline);
     const signature = maestroSnapshotSignature(snapshot);
-    if (signature === previousSignature) return { snapshot, signature };
+    if (signature === previousSignature) return { snapshot, signature, settled: true };
     previous = snapshot;
     previousSignature = signature;
 
     if (params.dependencies.now() >= deadline) {
-      return { snapshot: previous, signature: previousSignature };
+      return { snapshot: previous, signature: previousSignature, settled: false };
     }
   }
 }

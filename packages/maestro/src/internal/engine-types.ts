@@ -105,6 +105,15 @@ export type MaestroRuntimeMetrics = {
   hierarchyCaptures: number;
   screenshotCaptures: number;
   tapRetries: number;
+  /**
+   * Settle loops in this step that ran out of budget without the UI going quiet.
+   * A stability loop that never latches is the sleep-before-capture ordering
+   * signature (bug class 4), and it is the loop itself — not a stopwatch around
+   * the whole step — that knows which exit it took. A scroll settle bounded by
+   * the caller's remaining time can end unlatched legitimately, so read this per
+   * command rather than per flow.
+   */
+  settleTimeouts: number;
 };
 
 export type MaestroRuntimePort = {

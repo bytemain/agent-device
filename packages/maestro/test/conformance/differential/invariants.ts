@@ -7,9 +7,14 @@
 //
 // These invariants read the `replay-timing.ndjson` written by the test runtime
 // (src/daemon/handlers/session-test-runtime.ts) and assert engine-side facts —
-// e.g. a tap must not burn the entire settle budget, which is the signature of a
-// stability loop that never latches (a full-budget tap measures ~2093-2117ms
-// against a 2000ms budget; a healthy Android tap is ~350ms, iOS ~800-1100ms).
+// e.g. a tap's stability loop must latch rather than run out of settle budget,
+// which is the signature of a sleep-before-capture ordering regression.
+//
+// Prefer a metric the engine reports over a stopwatch around the step. A step's
+// wall clock is target resolution plus dispatch plus settle, so bounding it by
+// the settle budget alone conflates the three: the same tap measured 2710ms and
+// 3344ms on two runs of identical code, purely on how warm the snapshot path
+// was, while its loop latched on the first comparison both times.
 //
 // The evaluator is pure and unit-tested against synthetic traces; the device run
 // that produces a real trace happens only on the scheduled workflow.
@@ -25,6 +30,13 @@ export type TraceEvent = {
   resultTiming?: Record<string, unknown>;
 };
 
+/** MaestroRuntimeMetrics keys an invariant may read, recorded per step as deltas. */
+export type MetricKey =
+  | 'tapRetries'
+  | 'hierarchyCaptures'
+  | 'screenshotCaptures'
+  | 'settleTimeouts';
+
 export type Invariant =
   | {
       kind: 'stepDurationBelow';
@@ -38,8 +50,22 @@ export type Invariant =
       kind: 'metricAtLeast';
       command: string;
       /** MaestroRuntimeMetrics key, recorded per step as a delta. */
-      metric: 'tapRetries' | 'hierarchyCaptures' | 'screenshotCaptures';
+      metric: MetricKey;
       min: number;
+      because: string;
+    }
+  | {
+      /**
+       * An upper bound on a per-step metric — the shape for "the engine must NOT
+       * have done this". `settleTimeouts` at most 0 is the direct bug-class-4
+       * detector: it asks the stability loop which exit it took instead of timing
+       * the whole step from outside, which also counts target resolution and
+       * dispatch and so reads a slow CI simulator as a settle regression.
+       */
+      kind: 'metricAtMost';
+      command: string;
+      metric: MetricKey;
+      max: number;
       because: string;
     }
   | {
@@ -76,69 +102,84 @@ function completedSteps(events: TraceEvent[], command: string): TraceEvent[] {
   return events.filter((event) => event.type === 'replay_action_stop' && event.command === command);
 }
 
-export function evaluateInvariant(events: TraceEvent[], invariant: Invariant): InvariantResult {
-  const steps = completedSteps(events, invariant.command);
-  if (steps.length === 0) {
+type MetricBound = Extract<Invariant, { kind: 'metricAtLeast' | 'metricAtMost' }>;
+
+/** How a metric bound reads in a verdict, and what breaks it. */
+function metricBoundTerms(invariant: MetricBound) {
+  return invariant.kind === 'metricAtMost'
+    ? {
+        broken: (peak: number) => peak > invariant.max,
+        failed: `> ${invariant.max}`,
+        held: (peak: number) => `stayed at ${peak} (<= ${invariant.max})`,
+      }
+    : {
+        broken: (peak: number) => peak < invariant.min,
+        failed: `< ${invariant.min}`,
+        held: (peak: number) => `reached ${peak} (>= ${invariant.min})`,
+      };
+}
+
+function evaluateMetricBound(steps: TraceEvent[], invariant: MetricBound): InvariantResult {
+  const values = steps
+    .map((step) => step.resultTiming?.[invariant.metric])
+    .filter((value): value is number => typeof value === 'number');
+  if (values.length === 0) {
     return {
       invariant,
       status: 'no-data',
-      detail: `no completed ${invariant.command} steps in the trace`,
+      detail: `no ${invariant.command} step recorded a ${invariant.metric} metric`,
     };
   }
-
-  if (invariant.kind === 'metricAtLeast') {
-    const values = steps
-      .map((step) => step.resultTiming?.[invariant.metric])
-      .filter((value): value is number => typeof value === 'number');
-    if (values.length === 0) {
-      return {
-        invariant,
-        status: 'no-data',
-        detail: `no ${invariant.command} step recorded a ${invariant.metric} metric`,
-      };
-    }
-    // Per-step deltas: the strongest single step is what proves the path ran.
-    const best = Math.max(...values);
-    if (best < invariant.min) {
-      return {
+  // Per-step deltas, so the single strongest step decides: one step reaching the
+  // floor proves the path ran, one step over the ceiling proves the defect.
+  const peak = Math.max(...values);
+  const terms = metricBoundTerms(invariant);
+  return terms.broken(peak)
+    ? {
         invariant,
         status: 'violated',
-        detail: `highest ${invariant.command} ${invariant.metric} was ${best} (< ${invariant.min}): ${invariant.because}`,
+        detail: `highest ${invariant.command} ${invariant.metric} was ${peak} (${terms.failed}): ${invariant.because}`,
+      }
+    : {
+        invariant,
+        status: 'held',
+        detail: `${invariant.command} ${invariant.metric} ${terms.held(peak)}`,
       };
-    }
+}
+
+function evaluateGestureProfile(
+  steps: TraceEvent[],
+  invariant: Extract<Invariant, { kind: 'gestureExecutionProfile' }>,
+): InvariantResult {
+  const profiles = steps
+    .map((step) => step.resultTiming?.executionProfile)
+    .filter((value): value is string => typeof value === 'string');
+  if (profiles.length === 0) {
     return {
       invariant,
-      status: 'held',
-      detail: `${invariant.command} ${invariant.metric} reached ${best} (>= ${invariant.min})`,
+      status: 'no-data',
+      detail: `no ${invariant.command} step recorded an executionProfile`,
     };
   }
-
-  if (invariant.kind === 'gestureExecutionProfile') {
-    const profiles = steps
-      .map((step) => step.resultTiming?.executionProfile)
-      .filter((value): value is string => typeof value === 'string');
-    if (profiles.length === 0) {
-      return {
-        invariant,
-        status: 'no-data',
-        detail: `no ${invariant.command} step recorded an executionProfile`,
-      };
-    }
-    const firstMismatch = profiles.find((profile) => profile !== invariant.profile);
-    if (firstMismatch !== undefined) {
-      return {
-        invariant,
-        status: 'violated',
-        detail: `${invariant.command} executionProfile was ${firstMismatch} (expected ${invariant.profile}): ${invariant.because}`,
-      };
-    }
+  const firstMismatch = profiles.find((profile) => profile !== invariant.profile);
+  if (firstMismatch !== undefined) {
     return {
       invariant,
-      status: 'held',
-      detail: `${invariant.command} executionProfile is ${invariant.profile} on ${profiles.length} step(s)`,
+      status: 'violated',
+      detail: `${invariant.command} executionProfile was ${firstMismatch} (expected ${invariant.profile}): ${invariant.because}`,
     };
   }
+  return {
+    invariant,
+    status: 'held',
+    detail: `${invariant.command} executionProfile is ${invariant.profile} on ${profiles.length} step(s)`,
+  };
+}
 
+function evaluateStepDuration(
+  steps: TraceEvent[],
+  invariant: Extract<Invariant, { kind: 'stepDurationBelow' }>,
+): InvariantResult {
   const timed = steps.filter((step) => typeof step.durationMs === 'number');
   if (timed.length === 0) {
     return {
@@ -160,6 +201,22 @@ export function evaluateInvariant(events: TraceEvent[], invariant: Invariant): I
     status: 'held',
     detail: `slowest ${invariant.command} took ${worst}ms (< ${invariant.maxMs}ms)`,
   };
+}
+
+export function evaluateInvariant(events: TraceEvent[], invariant: Invariant): InvariantResult {
+  const steps = completedSteps(events, invariant.command);
+  if (steps.length === 0) {
+    return {
+      invariant,
+      status: 'no-data',
+      detail: `no completed ${invariant.command} steps in the trace`,
+    };
+  }
+  if (invariant.kind === 'metricAtMost' || invariant.kind === 'metricAtLeast') {
+    return evaluateMetricBound(steps, invariant);
+  }
+  if (invariant.kind === 'gestureExecutionProfile') return evaluateGestureProfile(steps, invariant);
+  return evaluateStepDuration(steps, invariant);
 }
 
 export function evaluateInvariants(

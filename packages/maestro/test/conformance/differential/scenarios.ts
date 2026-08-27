@@ -17,7 +17,6 @@
 // we do it engine-side via `engineInvariants` over agent-device's own replay
 // timing trace. Scenarios without invariants prove outcome parity ONLY; do not
 // read more into them than that.
-import { MAESTRO_DEFAULT_SETTLE_TIMEOUT_MS } from '../harness.ts';
 import type { Invariant } from './invariants.ts';
 
 /** Bundle id of the fixture app the workflow installs before running scenarios. */
@@ -98,11 +97,18 @@ export const DIFFERENTIAL_SCENARIOS: DifferentialScenario[] = [
     // budget still passes. This invariant is the actual bug-class-4 detector.
     engineInvariants: [
       {
-        kind: 'stepDurationBelow',
+        // Asks the stability loop which exit it took, rather than timing the whole
+        // step against the settle budget. The step also contains target resolution
+        // and dispatch, so the old `stepDurationBelow` bound could only pass when a
+        // hierarchy capture happened to be fast: it read 2710ms and 3344ms on two
+        // runs of identical engine code once #1989 removed the scrollUntilVisible
+        // that used to warm the snapshot path ahead of the tap.
+        kind: 'metricAtMost',
         command: 'tapOn',
-        maxMs: MAESTRO_DEFAULT_SETTLE_TIMEOUT_MS,
+        metric: 'settleTimeouts',
+        max: 0,
         because:
-          'a tap consuming the entire settle budget means the stability loop never latched — the signature of a sleep-before-capture ordering regression',
+          'a tap whose stability loop ran out of settle budget without the UI going quiet is the sleep-before-capture ordering signature',
       },
     ],
     divergenceMeans:
