@@ -9,7 +9,7 @@
 <script defer src="/agent-device/pr-preview/pr-2104/static/js/lib-react.e84adf13b9.js"></script>
 <script defer src="/agent-device/pr-preview/pr-2104/static/js/lib-router.270f17bfa6.js"></script>
 <script defer src="/agent-device/pr-preview/pr-2104/static/js/476.52ed165336.js"></script>
-<script defer src="/agent-device/pr-preview/pr-2104/static/js/index.0651637f0a.js"></script>
+<script defer src="/agent-device/pr-preview/pr-2104/static/js/index.9495384d1a.js"></script>
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="generator" content="Rspress v2.0.12">
 <meta property="og:url" content="https://oss.callstack.com/agent-device">
@@ -38,7 +38,7 @@
 <li>Artifact uploads are size-capped, filenames are sanitized, and archive extraction rejects path-traversal entries. Artifact downloads resolve through server-side IDs, never client-supplied paths.</li>
 </ul>
 <p>For remote or cloud deployments, the daemon supports a custom auth hook: <code>AGENT_DEVICE_HTTP_AUTH_HOOK</code> names a module path that is dynamically imported and invoked for each HTTP request (with <code>AGENT_DEVICE_HTTP_AUTH_EXPORT</code> selecting the export). The hook runs with the daemon&#x27;s full privileges, so treat it as part of your trusted computing base: point it only at a read-only path you control, never at a location writable by less-trusted users or processes. Whoever controls the daemon&#x27;s environment controls the hook.</p>
-<p>If a hook is configured but its result does not attest a <code>tenantId</code> for a given request, the daemon refuses that request (401) rather than trusting a tenant the client declared itself (RPC body <code>meta.tenantId</code>, or the <code>x-agent-device-tenant</code> header on the upload/artifact-download/diagnostics routes) — a shared token must not let one caller claim another tenant&#x27;s identity. A hook that needs per-tenant scoping must attest <code>tenantId</code> explicitly; a deployment with no hook configured is unaffected.</p>
+<p>If a hook is configured and its result does not attest a <code>tenantId</code>, the daemon never falls back to a tenant the client declares itself (RPC body <code>meta.tenantId</code>, or the <code>x-agent-device-tenant</code> header on the upload/artifact-download/diagnostics routes): a request that also declares a tenant is refused (401) rather than run as whichever tenant the caller claimed, while a request that declares none proceeds unscoped — a shared token must not let one caller claim another tenant&#x27;s identity. A hook that needs per-tenant scoping must attest <code>tenantId</code> explicitly; a deployment with no hook configured is unaffected.</p>
 <h2 class="rp-toc-include" id="sensitive-artifacts"><a href="#sensitive-artifacts" class="rp-header-anchor rp-link" aria-hidden="true">#</a>Sensitive artifacts</h2>
 <p>Screenshots, recordings, traces, logs, network dumps, audio probes, replay files, provider-hosted cloud videos/logs, and reports can contain private UI state, credentials, tokens, request data, timing signals, or customer information. Store them in a controlled directory, review before sharing, and avoid committing artifacts unless they are intentionally sanitized fixtures.</p>
 <p>Cloud provider artifact URLs returned by <code>artifacts</code>, <code>close --json</code>, or <code>disconnect --json</code> may be provider dashboard URLs, public share links, or pre-signed download URLs. Treat the URLs themselves as sensitive credentials until you know the provider&#x27;s sharing and expiry policy.</p>
