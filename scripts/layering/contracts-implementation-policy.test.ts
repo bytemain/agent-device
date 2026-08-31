@@ -91,3 +91,41 @@ test('contracts rejects snapshot quality warning rendering', () => {
     /src\/snapshot\/snapshot-presentation/,
   );
 });
+
+test('iOS snapshot contracts reject planning implementation and provider imports', () => {
+  const contract = 'packages/contracts/src/ios-snapshot.ts';
+  assert.match(
+    messages('export const presentSnapshot = (nodes: unknown[]) => nodes;', contract)[0]!,
+    /typed vocabulary only/,
+  );
+  assert.match(
+    messages(
+      [
+        "import type { planIosSnapshot } from '@agent-device/capture-kit';",
+        'export type IosPlan = { readonly value: string };',
+      ].join('\n'),
+      contract,
+    )[0]!,
+    /planning algorithms or provider\/lifecycle implementation/,
+  );
+  assert.match(
+    messages(
+      [
+        "import type { ProviderSnapshot } from '@agent-device/provider-ios';",
+        'export type IosProvider = { readonly value: string };',
+      ].join('\n'),
+      contract,
+    )[0]!,
+    /provider\/lifecycle implementation/,
+  );
+  assert.deepEqual(
+    messages(
+      [
+        "import type { RawSnapshotNode } from '@agent-device/kernel/snapshot';",
+        'export type IosNode = RawSnapshotNode;',
+      ].join('\n'),
+      contract,
+    ),
+    [],
+  );
+});

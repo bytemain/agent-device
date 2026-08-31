@@ -243,6 +243,10 @@
       "types": "./src/interaction-guarantees.ts",
       "default": "./src/interaction-guarantees.ts"
     },
+    "./ios-snapshot": {
+      "types": "./src/ios-snapshot.ts",
+      "default": "./src/ios-snapshot.ts"
+    },
     "./interactor-operation-catalog": {
       "types": "./src/interactor-operation-catalog.ts",
       "default": "./src/interactor-operation-catalog.ts"

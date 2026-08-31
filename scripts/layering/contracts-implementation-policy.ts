@@ -13,6 +13,7 @@ const FORBIDDEN_TIMER_CALLS = new Set([
   'setInterval',
   'setTimeout',
 ]);
+const IOS_SNAPSHOT_CONTRACT = 'packages/contracts/src/ios-snapshot.ts';
 
 /** Contracts owns vocabulary. Host/process/timer mechanics belong in capture-kit or an adapter. */
 export function contractsImplementationAuthorityViolations(
@@ -46,6 +47,8 @@ export function contractsImplementationAuthorityViolations(
       );
     }
     if (networkTrafficViolation) violations.push(networkTrafficViolation);
+    const iosSnapshotViolation = iosSnapshotContractViolation(file.path, file.source, parsed);
+    if (iosSnapshotViolation) violations.push(iosSnapshotViolation);
     for (const site of moduleSpecifiers(parsed.module, file.source)) {
       if (!FORBIDDEN_HOST_MODULES.test(site.spec)) continue;
       violations.push(
@@ -70,6 +73,31 @@ export function contractsImplementationAuthorityViolations(
     });
   }
   return violations;
+}
+
+function iosSnapshotContractViolation(
+  file: string,
+  source: string,
+  parsed: ReturnType<typeof parseSync>,
+): LayeringViolation | undefined {
+  if (file !== IOS_SNAPSHOT_CONTRACT) return undefined;
+  const implementation = parsed.program.body.find((statement) => !isTypeOnlyStatement(statement));
+  if (implementation && typeof implementation === 'object') {
+    return violation(
+      file,
+      lineAt(source, Number((implementation as Record<string, unknown>).start ?? 0)),
+      'iOS snapshot contracts own typed vocabulary only; planning algorithms and provider/lifecycle implementations cannot enter contracts',
+    );
+  }
+  const disallowedImport = moduleSpecifiers(parsed.module, source).find(
+    ({ spec }) => !spec.startsWith('@agent-device/kernel/'),
+  );
+  if (!disallowedImport) return undefined;
+  return violation(
+    file,
+    disallowedImport.line,
+    `iOS snapshot contracts may import only kernel vocabulary; '${disallowedImport.spec}' would bring planning algorithms or provider/lifecycle implementation into contracts`,
+  );
 }
 
 function networkTrafficImplementationViolation(
