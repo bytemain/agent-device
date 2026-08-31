@@ -119,6 +119,8 @@
     "maestro:conformance:differential": "node --experimental-strip-types packages/maestro/test/conformance/differential/run.ts",
     "size": "node scripts/size-report.mjs",
     "perf": "node --experimental-strip-types scripts/perf/run.ts",
+    "bench:ios-snapshot": "node --experimental-strip-types scripts/ios-snapshot-benchmark/run.ts",
+    "bench:ios-snapshot:deep-button": "node --experimental-strip-types scripts/ios-snapshot-benchmark/deep-button.ts",
     "mutation:run": "node --experimental-strip-types scripts/mutation/run.ts",
     "mutation:check": "node --experimental-strip-types scripts/mutation/run.ts --no-run",
     "mutation:affected": "node --experimental-strip-types scripts/mutation/run.ts --affected",
