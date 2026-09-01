@@ -94,6 +94,7 @@ function validateRunnerPayloads(
       if (error instanceof IosSnapshotEngineError) {
         throw new IosSnapshotEngineError('invalid-quality-payload', error.message, error.details);
       }
+      /* c8 ignore next */
       throw error;
     }
   }

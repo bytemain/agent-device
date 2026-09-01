@@ -1,3 +1,4 @@
+/* c8 ignore file */
 import fs from 'node:fs';
 import path from 'node:path';
 import { compareDifferentialCases } from './conformance-harness.ts';

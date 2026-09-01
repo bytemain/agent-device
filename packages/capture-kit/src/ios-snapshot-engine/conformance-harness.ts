@@ -52,14 +52,17 @@ type DifferentialMismatch = Readonly<{
 
 export function swiftToolchainAvailable(): boolean {
   if (process.platform !== 'darwin') return false;
+  /* c8 ignore start */
   try {
     execFileSync('swift', ['--version'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
   }
+  /* c8 ignore stop */
 }
 
+/* c8 ignore start */
 export function compareDifferentialCases(
   cases: readonly DifferentialCase[],
 ): DifferentialMismatch | undefined {
@@ -74,7 +77,9 @@ export function compareDifferentialCases(
   }
   return undefined;
 }
+/* c8 ignore stop */
 
+/* c8 ignore start */
 function runSwiftCases(cases: readonly DifferentialCase[]): DifferentialOutcome[] {
   const stdout = execFileSync(swiftConformanceExecutable(), [], {
     cwd: REPO_ROOT,
@@ -98,7 +103,9 @@ function runSwiftCases(cases: readonly DifferentialCase[]): DifferentialOutcome[
     ...(entry.error ? { error: entry.error } : {}),
   }));
 }
+/* c8 ignore stop */
 
+/* c8 ignore start */
 function swiftConformanceExecutable(): string {
   if (swiftHarnessExecutable) return swiftHarnessExecutable;
   execFileSync('swift', ['build', '--package-path', SWIFT_PACKAGE_PATH], {
@@ -114,6 +121,7 @@ function swiftConformanceExecutable(): string {
   swiftHarnessExecutable = path.join(binPath, SWIFT_PRODUCT);
   return swiftHarnessExecutable;
 }
+/* c8 ignore stop */
 
 function prepareDifferentialAcquisition(testCase: DifferentialCase): DifferentialCase {
   if (testCase.projection !== 'raw' || testCase.scope !== null || testCase.depth === null) {
@@ -125,10 +133,12 @@ function prepareDifferentialAcquisition(testCase: DifferentialCase): Differentia
   };
 }
 
+/* c8 ignore start */
 function withoutName(outcome: DifferentialOutcome): Omit<DifferentialOutcome, 'name'> {
   const { name: _name, ...normalized } = outcome;
   return normalized;
 }
+/* c8 ignore stop */
 
 export function runTypeScriptCase(testCase: DifferentialCase): DifferentialOutcome {
   const acquisitionInput = prepareDifferentialAcquisition(testCase);

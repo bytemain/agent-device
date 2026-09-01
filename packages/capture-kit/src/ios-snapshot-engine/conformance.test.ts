@@ -8,6 +8,7 @@ import {
   deriveIosCaptureHint,
 } from '@agent-device/capture-kit/ios-snapshot-planning';
 import { IosSnapshotEngineError, presentIosSnapshot } from './index.ts';
+import { runTypeScriptCase, writeDifferentialFailureArtifact } from './conformance-harness.ts';
 import {
   acquisitionForGoldenCase,
   normalizeGoldenNodes,
@@ -122,4 +123,51 @@ test('the independent iOS snapshot goldens match the TypeScript engine', () => {
       testCase.name,
     );
   }
+});
+
+test('the differential TypeScript runner preserves typed failures', () => {
+  const fixture = readIosSnapshotEngineFixture();
+  const source = fixture.cases.find(
+    (testCase) => testCase.name === 'malformed parent is a typed failure',
+  );
+  assert.ok(source);
+  const result = runTypeScriptCase({
+    name: source.name,
+    projection: source.projection,
+    interactiveOnly: false,
+    depth: source.depth,
+    scope: source.scope,
+    foldPolicy: source.foldPolicy,
+    viewport: fixture.viewport,
+    nodes: source.nodes,
+  });
+  assert.equal(result.outcome, 'failure');
+  assert.ok(result.error?.code);
+});
+
+test('differential failure artifacts preserve replay metadata', () => {
+  const fixture = readIosSnapshotEngineFixture();
+  const source = fixture.cases[0]!;
+  const testCase = {
+    name: source.name,
+    projection: source.projection,
+    interactiveOnly: false as const,
+    depth: source.depth,
+    scope: source.scope,
+    foldPolicy: source.foldPolicy,
+    viewport: fixture.viewport,
+    nodes: source.nodes,
+  };
+  const artifact = writeDifferentialFailureArtifact({
+    testCase,
+    seed: 219101,
+    counterexamplePath: '0:0',
+  });
+  const stored = JSON.parse(fs.readFileSync(artifact.casePath, 'utf8')) as {
+    cases: readonly unknown[];
+  };
+  const metadata = fs.readFileSync(path.join(artifact.directory, 'replay-command.txt'), 'utf8');
+  assert.equal(stored.cases.length, 1);
+  assert.match(metadata, /seed=219101/);
+  assert.match(metadata, /path=0:0/);
 });
