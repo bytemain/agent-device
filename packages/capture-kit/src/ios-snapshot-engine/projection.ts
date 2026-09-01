@@ -86,10 +86,9 @@ function projectRawNodes(
 ): IosSnapshotProjectionResult {
   const selected =
     maximumDepth === null ? [...nodes] : nodes.filter((node) => rawDepth(node) <= maximumDepth);
-  const reindexed = reindexScopedNodes(selected, 0);
   return {
-    nodes: reindexed.map((node) => ({ ...node.raw, rect: node.raw.rect })),
-    sourceIndexes: reindexed.map((node) => node.raw.index),
+    nodes: selected.map((node) => ({ ...node.raw, rect: node.raw.rect })),
+    sourceIndexes: selected.map((node) => node.raw.index),
   };
 }
 

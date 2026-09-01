@@ -14,7 +14,7 @@
 // can: `CANONICAL_PLATFORM_FAMILIES` names the families, layering R13 pins each family's runtime
 // to `packages/platform-<family>/`, and the remaining family-owned
 // trees are named by a family or Apple-leaf directory segment (`android/`, `linux/`,
-// `test/integration/replays/<leaf>/`, `src/snapshot/snapshot-presentation/ios/`) or, under
+// `test/integration/replays/<leaf>/`, `packages/capture-kit/src/ios-snapshot-engine/`) or, under
 // `test/integration/`, by the lane prefix of the smoke file. A path tagged with exactly one
 // family owns that family's lanes; a path tagged with none — or with two — is shared runtime
 // surface and owns every lane. Unit tests (`*.test.ts`, `__tests__/`) under `src/` and
@@ -55,6 +55,7 @@ const LEAF_LANES: Readonly<Record<Leaf, readonly CheckId[]>> = {
 // `xcuitest`, whose only lanes today are the Apple family's) owns every Apple lane.
 const APPLE_LEAF_TAGS: Readonly<Record<string, 'ios' | 'macos' | 'apple'>> = {
   ios: 'ios',
+  'ios-snapshot-engine': 'ios',
   macos: 'macos',
   apple: 'apple',
   tvos: 'apple',

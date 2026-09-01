@@ -92,22 +92,6 @@ function copySnapshotPresentationManifest(manifestSource, outputRoot, summary, c
   summary.copiedFiles += 1;
 }
 
-function snapshotPresentationRunnerManifest(sourceRoot) {
-  const manifestSource = path.join(sourceRoot, SNAPSHOT_PRESENTATION_RUNNER_MANIFEST);
-  if (!fs.existsSync(manifestSource)) {
-    throw new Error(`Apple snapshot presentation runner manifest not found at ${manifestSource}`);
-  }
-  return manifestSource;
-}
-
-function installSnapshotPresentationRunnerManifest(manifestSource, outputRoot, checkOnly, summary) {
-  if (checkOnly) {
-    return;
-  }
-  fs.copyFileSync(manifestSource, path.join(outputRoot, 'Package.swift'));
-  summary.copiedFiles += 1;
-}
-
 function prepareOutput(root, outputRoot, checkOnly) {
   if (checkOnly) {
     return;

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { RawSnapshotNode } from '@agent-device/kernel/snapshot';
-import { buildIosInteractiveSnapshotPresentation } from './index.ts';
+import { buildIosInteractiveSnapshotPresentation } from '@agent-device/capture-kit/ios-snapshot-engine';
 
 test('publishes an exact representative for every semantic source index', () => {
   const nodes: RawSnapshotNode[] = [

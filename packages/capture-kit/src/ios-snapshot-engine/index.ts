@@ -1,7 +1,6 @@
 export {
   compactIosInteractiveSnapshot,
   createIosSnapshotEngine,
-  iosSnapshotEngine,
   presentIosSnapshot,
   publishIosSnapshot,
 } from './engine.ts';

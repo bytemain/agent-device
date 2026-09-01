@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import type { RawSnapshotNode } from '@agent-device/kernel/snapshot';
 
-import { collectIosStructuralIdentifierSuppression } from './noise.ts';
+import { collectIosStructuralIdentifierSuppression } from '@agent-device/capture-kit/ios-snapshot-engine';
 import type { SnapshotTreeRuleContext } from '@agent-device/capture-kit/ios-snapshot-engine';
 
 type ReadCounter = { reads: number };

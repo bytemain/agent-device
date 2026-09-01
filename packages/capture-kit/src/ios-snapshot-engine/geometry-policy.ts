@@ -225,10 +225,13 @@ function intersectRect(left: Rect, right: Rect): Rect {
   const y = Math.max(left.y, right.y);
   const rightEdge = Math.min(left.x + left.width, right.x + right.width);
   const bottomEdge = Math.min(left.y + left.height, right.y + right.height);
+  if (rightEdge <= x || bottomEdge <= y) {
+    return { x: left.x, y: left.y, width: 0, height: 0 };
+  }
   return {
     x: rightEdge > x ? x : left.x,
     y: bottomEdge > y ? y : left.y,
-    width: rightEdge > x ? rightEdge - x : 0,
-    height: bottomEdge > y ? bottomEdge - y : 0,
+    width: rightEdge - x,
+    height: bottomEdge - y,
   };
 }

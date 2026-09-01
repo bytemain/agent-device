@@ -28,11 +28,6 @@ import { IosSnapshotEngineError } from './types.ts';
 
 const DEFAULT_FOLD_POLICY: IosSnapshotFoldPolicy = 'cursor-projected';
 
-export const iosSnapshotEngine: IosSnapshotEngine = Object.freeze({
-  plan: planIosSnapshot,
-  publish: (input, request) => publishIosSnapshot(input, request),
-});
-
 export function createIosSnapshotEngine(options: IosSnapshotEngineOptions = {}): IosSnapshotEngine {
   const foldPolicy = options.foldPolicy ?? DEFAULT_FOLD_POLICY;
   return Object.freeze({

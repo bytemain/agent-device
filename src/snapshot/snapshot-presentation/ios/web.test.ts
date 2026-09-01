@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { RawSnapshotNode } from '@agent-device/kernel/snapshot';
-import { presentIosInteractiveSnapshot } from './index.ts';
+import { presentIosInteractiveSnapshot } from '@agent-device/capture-kit/ios-snapshot-engine';
 
 test('projects iOS WebKit heading and text wrappers to semantic roles', () => {
   const nodes: RawSnapshotNode[] = [
