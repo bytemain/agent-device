@@ -11,7 +11,13 @@ import {
   listenOnLoopback,
   supportsLoopbackBind,
 } from '../../__tests__/test-utils/loopback.ts';
-import { runCmdBackground } from '../exec.ts';
+import { runCmdBackground } from '@agent-device/host-kit/command';
+import {
+  isProcessAlive,
+  readProcessCommand,
+  readProcessStartTime,
+  waitForProcessExit,
+} from '@agent-device/host-kit/process';
 import { sendToDaemon } from '../../daemon/client/daemon-client.ts';
 import { computeDaemonCodeSignature } from '../../daemon/code-signature.ts';
 import { downloadRemoteArtifact } from '../../remote/daemon-artifacts.ts';
@@ -27,14 +33,8 @@ import {
   shouldResetDaemonAfterRequestTimeout,
 } from '../../daemon/client/daemon-client-timeout.ts';
 import { resolveDaemonPaths } from '../../daemon/config.ts';
-import {
-  isProcessAlive,
-  readProcessCommand,
-  readProcessStartTime,
-  waitForProcessExit,
-} from '../host-process.ts';
 import { stopProcessForTakeover } from '../../daemon/daemon-process.ts';
-import { findProjectRoot, readVersion } from '../version.ts';
+import { findProjectRoot, readVersion } from '@agent-device/host-kit/version';
 import { mkdtempForTestSync } from '../../__tests__/test-utils/tmp-dir.ts';
 
 // readProcessStartTime/readProcessCommand shell out to `ps` with a 1s
@@ -52,8 +52,8 @@ const { mockReadProcessStartTime, mockReadProcessCommand } = vi.hoisted(() => ({
   mockReadProcessCommand: vi.fn<(pid: number) => string | null | undefined>(),
 }));
 
-vi.mock('../host-process.ts', async () => {
-  const actual = await vi.importActual<typeof import('../host-process.ts')>('../host-process.ts');
+vi.mock('@agent-device/host-kit/process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@agent-device/host-kit/process')>();
   return {
     ...actual,
     readProcessStartTime: (pid: number) => {
@@ -1187,7 +1187,7 @@ test.each([
 
     try {
       await withRemoteDaemonEnv(async () => {
-        let error: unknown;
+        let thrown: unknown;
         try {
           await sendToDaemon({
             session: 'default',
@@ -1196,18 +1196,18 @@ test.each([
             flags: {},
             meta: { requestId: 'req-incompatible' },
           });
-        } catch (caught) {
-          error = caught;
+        } catch (error) {
+          thrown = error;
         }
 
-        assert.ok(error instanceof Error);
-        assert.equal((error as any).code, 'COMMAND_FAILED');
-        assert.match(error.message, /Remote daemon RPC protocol is incompatible/);
-        assert.equal((error as any).details?.remoteService, 'agent-device-proxy');
-        assert.equal((error as any).details?.remoteVersion, '99.0.0');
-        assert.equal((error as any).details?.remoteRpcProtocolVersion, remoteProtocolVersion);
+        assert.ok(thrown instanceof Error);
+        assert.equal((thrown as any).code, 'COMMAND_FAILED');
+        assert.match(thrown.message, /Remote daemon RPC protocol is incompatible/);
+        assert.equal((thrown as any).details?.remoteService, 'agent-device-proxy');
+        assert.equal((thrown as any).details?.remoteVersion, '99.0.0');
+        assert.equal((thrown as any).details?.remoteRpcProtocolVersion, remoteProtocolVersion);
         assert.equal(
-          (error as any).details?.supportedRpcProtocolVersion,
+          (thrown as any).details?.supportedRpcProtocolVersion,
           DAEMON_RPC_PROTOCOL_VERSION,
         );
       });
@@ -1228,7 +1228,7 @@ test('sendToDaemon hints to disconnect when a remote daemon is unavailable', asy
 
   try {
     await withRemoteDaemonEnv(async () => {
-      let error: unknown;
+      let thrown: unknown;
       try {
         await sendToDaemon({
           session: 'default',
@@ -1237,14 +1237,14 @@ test('sendToDaemon hints to disconnect when a remote daemon is unavailable', asy
           flags: {},
           meta: { requestId: 'req-remote-unavailable' },
         });
-      } catch (caught) {
-        error = caught;
+      } catch (error) {
+        thrown = error;
       }
 
-      assert.ok(error instanceof Error);
-      assert.equal((error as any).code, 'COMMAND_FAILED');
-      assert.equal(error.message, 'Remote daemon is unavailable');
-      assert.match(String((error as any).details?.hint ?? ''), /agent-device disconnect/);
+      assert.ok(thrown instanceof Error);
+      assert.equal((thrown as any).code, 'COMMAND_FAILED');
+      assert.equal(thrown.message, 'Remote daemon is unavailable');
+      assert.match(String((thrown as any).details?.hint ?? ''), /agent-device disconnect/);
     });
   } finally {
     restoreHttpRequest();

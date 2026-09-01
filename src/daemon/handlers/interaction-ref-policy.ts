@@ -6,7 +6,7 @@ import {
 } from '../ref-frame.ts';
 import { AppError } from '@agent-device/kernel/errors';
 import type { DaemonResponse, SessionState } from '../types.ts';
-import { errorResponse } from './response.ts';
+import { errorResponse } from '../response.ts';
 
 /**
  * ADR 0014 mutation-admission enforcement. A ref-targeting mutation is admitted
@@ -60,13 +60,24 @@ export function assertRefMutationAdmitted(params: {
   if (admission.admitted) return;
 
   const scope = refFrameScope(params.session);
+  const currentGeneration = refFrameEpoch(params.session);
+  const suggestedRef =
+    admission.reason === 'plain_ref_requires_complete_frame' &&
+    scope !== 'all' &&
+    scope.has(refBody) &&
+    currentGeneration !== undefined
+      ? `@${refBody}~s${currentGeneration}`
+      : undefined;
   throw new AppError('COMMAND_FAILED', rejectionMessage(admission.reason, params.ref), {
     reason: admission.reason,
     ref: params.ref,
-    currentGeneration: refFrameEpoch(params.session),
+    currentGeneration,
     scope: scope === 'all' ? 'all' : Array.from(scope),
     ...(params.mintedGeneration !== undefined ? { mintedGeneration: params.mintedGeneration } : {}),
-    hint: params.staleRefsWarning ?? REJECTION_HINT,
+    ...(suggestedRef ? { suggestedRef } : {}),
+    hint: suggestedRef
+      ? `Retry with the exact emitted ref ${suggestedRef}.`
+      : (params.staleRefsWarning ?? REJECTION_HINT),
   });
 }
 

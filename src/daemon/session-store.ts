@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { AppError, type DiagnosticsRecordRef } from '@agent-device/kernel/errors';
-import { emitDiagnostic } from '../utils/diagnostics.ts';
+import { emitDiagnostic } from '@agent-device/host-kit/diagnostics';
 import type { SessionRef, SessionRuntimeHints, SessionState } from './types.ts';
 import { recordActionEntry, type RecordActionEntry } from './session-action-recorder.ts';
 import { expandSessionPath, isSafeSessionSegment, safeSessionName } from './session-paths.ts';
@@ -16,7 +16,7 @@ import {
   type SessionScriptWriteOptions,
   type SessionScriptWriteResult,
 } from './session-script-writer.ts';
-import { successText } from '../utils/success-text.ts';
+import { successText } from '@agent-device/kernel/success-text';
 import {
   appendActionEvent,
   appendSessionEvent,
@@ -296,7 +296,7 @@ export class SessionStore {
 
   defaultTracePath(session: SessionState): string {
     const safeName = safeSessionName(session.name);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-');
     return path.join(this.sessionsDir, `${safeName}-${timestamp}.trace.log`);
   }
 

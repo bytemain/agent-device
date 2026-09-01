@@ -66,7 +66,7 @@ export const MACOS_PLATFORM_COVERAGE = {
     'Apple inventory projects the local macOS host as a desktop device',
   ),
   [C.capabilities]: contract(
-    'src/daemon/handlers/__tests__/session-capabilities.test.ts',
+    'src/daemon/session-lifecycle/internal/__tests__/session-capabilities.test.ts',
     'capabilities preserves session-owned appstate for an active %s session',
     'the capabilities response projects exact runtime facts plus active macOS session state',
   ),
@@ -194,7 +194,7 @@ export const MACOS_PLATFORM_COVERAGE = {
     'the System Settings replay returns from the About pane',
   ),
   [C.gesture]: contract(
-    'src/platforms/apple/core/__tests__/interactions.test.ts',
+    'packages/platform-apple/src/core/__tests__/interactions.test.ts',
     'performGestureApple composes macOS one-contact plans with the drag executor',
     'macOS gesture dispatch preserves the one-contact drag plan',
   ),

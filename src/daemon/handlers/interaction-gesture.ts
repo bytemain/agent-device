@@ -25,14 +25,14 @@ import {
 } from '@agent-device/kernel/snapshot';
 import { resolveBoundGestureRuntime, type BoundGestureExecutor } from '../gesture-runtime.ts';
 import { isActiveProviderDevice } from '../../provider-device-runtime.ts';
-import { sleep } from '../../utils/timeouts.ts';
+import { sleep } from '@agent-device/host-kit/retry';
 import { ensureAndroidBlockingSystemDialogReady } from '../android-system-dialog.ts';
 import type { DaemonResponse, SessionState } from '../types.ts';
 import type { InteractionHandlerParams } from './interaction-common.ts';
 import { finalizeTouchInteraction } from './interaction-common.ts';
 import { createInteractionRuntime } from './interaction-runtime.ts';
 import type { CaptureSnapshotForSession } from './interaction-snapshot.ts';
-import { noActiveSessionError } from './response.ts';
+import { noActiveSessionError } from '../response.ts';
 import { assertRefMutationAdmitted } from './interaction-ref-policy.ts';
 import type { RecordedTargetCapture } from '../session-target-evidence.ts';
 import { gestureResponseData } from './interaction-gesture-response.ts';

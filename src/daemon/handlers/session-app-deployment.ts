@@ -12,17 +12,20 @@ import type { BindDeviceRuntime, InspectDeviceRuntimeFacts } from '../request-ru
 import { SessionStore } from '../session-store.ts';
 import type { DaemonRequest, DaemonResponse, SessionState } from '../types.ts';
 import { resolvePayloadInput } from '../../utils/payload-input.ts';
-import { resolveDeployResultTarget } from '../../utils/result-serialization.ts';
-import { withSuccessText } from '../../utils/success-text.ts';
+import { resolveDeployResultTarget } from '../result-serialization.ts';
+import { withSuccessText } from '@agent-device/kernel/success-text';
 import { recordSessionAction } from './handler-utils.ts';
-import { errorResponse } from './response.ts';
-import { requireSessionOrExplicitSelector, resolveCommandDevice } from './session-device-utils.ts';
+import { errorResponse } from '../response.ts';
+import {
+  requireSessionOrExplicitSelector,
+  resolveCommandDevice,
+} from '../session-device-resolution.ts';
 import {
   requireRuntimeBinding,
   requireRuntimeFacts,
   type RuntimeCommandHandlerParams,
   unavailableRuntimeOperationResponse,
-} from './session-runtime-admission.ts';
+} from '../session-runtime-admission.ts';
 
 type DeployCommand = 'install' | 'reinstall';
 

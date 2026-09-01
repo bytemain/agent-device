@@ -7,20 +7,16 @@ import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
 import { mkdtempForTestSync } from '../../__tests__/test-utils/tmp-dir.ts';
 
-vi.mock('../exec.ts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../exec.ts')>();
-  return {
-    ...actual,
-    runCmdDetached: vi.fn(),
-    runCmdDetachedMonitored: vi.fn(),
-    runCmdSync: vi.fn(() => ({ exitCode: 1, stdout: '', stderr: '' })),
-  };
-});
-
-vi.mock('../timeouts.ts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../timeouts.ts')>();
-  return { ...actual, sleep: vi.fn(async () => {}) };
-});
+vi.mock('@agent-device/host-kit/command', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@agent-device/host-kit/command')>()),
+  runCmdDetached: vi.fn(),
+  runCmdDetachedMonitored: vi.fn(),
+  runCmdSync: vi.fn(() => ({ exitCode: 1, stdout: '', stderr: '' })),
+}));
+vi.mock('@agent-device/host-kit/retry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@agent-device/host-kit/retry')>()),
+  sleep: vi.fn(async () => {}),
+}));
 
 import { resolveDaemonPaths, type DaemonPaths } from '../../daemon/config.ts';
 import {
@@ -37,11 +33,14 @@ import {
   supportsLoopbackBind,
 } from '../../__tests__/test-utils/loopback.ts';
 import { AppError } from '@agent-device/kernel/errors';
-import { runCmdDetachedMonitored, runCmdSync } from '../exec.ts';
-import { readProcessStartTime } from '../host-process.ts';
-import { shellQuoteIfNeeded } from '../shell-quote.ts';
-import { sleep } from '../timeouts.ts';
-import { findProjectRoot, readVersion } from '../version.ts';
+import {
+  runCmdDetachedMonitored,
+  runCmdSync,
+  shellQuoteIfNeeded,
+} from '@agent-device/host-kit/command';
+import { readProcessStartTime } from '@agent-device/host-kit/process';
+import { sleep } from '@agent-device/host-kit/retry';
+import { findProjectRoot, readVersion } from '@agent-device/host-kit/version';
 
 type DaemonInfoFixture = {
   port?: number;

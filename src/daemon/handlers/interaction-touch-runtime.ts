@@ -7,7 +7,7 @@ import type {
 } from '@agent-device/contracts/interaction';
 import type { GestureReferenceFrame } from '@agent-device/contracts/scroll-gesture';
 import { asAppError, normalizeError } from '@agent-device/kernel/errors';
-import { readResolvedInteractionTarget } from '../../contracts/interaction-outcome.ts';
+import { readResolvedInteractionTarget } from '../../core/interaction-outcome.ts';
 import { isSessionRecording } from '../session-script-publication-capability.ts';
 import type { DaemonResponse, SessionState } from '../types.ts';
 import { publishInteractionAmbiguityCandidates } from './interaction-ambiguity-publication.ts';
@@ -27,7 +27,7 @@ import {
   pointPositionals,
   type InteractionResponsePayloads,
 } from './interaction-touch-response.ts';
-import { noActiveSessionError } from './response.ts';
+import { noActiveSessionError } from '../response.ts';
 import type { BoundTouchExecutor } from '../touch-runtime.ts';
 
 /**

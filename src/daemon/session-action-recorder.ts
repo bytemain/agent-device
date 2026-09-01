@@ -1,7 +1,7 @@
 import type { SessionAction } from '@agent-device/contracts/session';
 import type { CommandFlags } from '@agent-device/contracts/command';
 import { SCREENSHOT_ACTION_FLAG_KEYS } from '@agent-device/contracts/capture';
-import { emitDiagnostic } from '../utils/diagnostics.ts';
+import { emitDiagnostic } from '@agent-device/host-kit/diagnostics';
 import type { DaemonRequest, SessionRuntimeHints, SessionState } from './types.ts';
 import { applyRecordedSaveScriptFlags } from './session-script-publication-capability.ts';
 import { repairSessionBoundary } from './session-replay-transaction.ts';
@@ -10,7 +10,7 @@ import { inferFillText } from './action-utils.ts';
 import {
   recordedInputPlaceholder,
   validateRecordedInputVariableName,
-} from '../replay/recorded-input.ts';
+} from '@agent-device/ad-script';
 import {
   parameterizeRecordedFillPayload,
   parameterizeRecordedFillTargetEvidence,
@@ -282,7 +282,7 @@ const OBSERVATION_ONLY_COMMANDS: ReadonlySet<string> = new Set(['snapshot', 'get
  * Two facts, ANDed, and the second is the one that matters:
  *  1. the command is observation-only (above); and
  *  2. it is NOT a replay plan step (`internal.replayPlanStep`, stamped by
- *     `invokeResolvedReplayAction`, `handlers/session-replay-action-runtime.ts`).
+ *     `invokeResolvedReplayAction`, `daemon/replay/internal/session-replay-action-runtime.ts`).
  *
  * (2) is why this is a PROVENANCE rule, not a command-class rule. Replayed
  * plan steps dispatch through the ordinary request path and land in

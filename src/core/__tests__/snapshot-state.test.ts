@@ -1,11 +1,11 @@
 import { expect, test } from 'vitest';
 import { buildSnapshotState } from '../snapshot-state.ts';
-import { isNodeVisibleOnScreen } from '@agent-device/contracts/snapshot';
+import { createSnapshotVisibility } from '@agent-device/contracts/snapshot';
 import { attachSnapshotOcclusionContextEvidence } from '@agent-device/contracts/capture';
 import {
   buildUiHierarchySnapshot,
   parseUiHierarchyTree,
-} from '../../platforms/android/ui-hierarchy.ts';
+} from '@agent-device/platform-android/mechanics';
 
 test('buildSnapshotState handles undefined nodes gracefully', () => {
   const state = buildSnapshotState({ nodes: undefined, truncated: undefined }, undefined);
@@ -75,7 +75,7 @@ test('buildSnapshotState preserves Android effective geometry for post-wire cons
     rect: { x: 200, y: 300, width: 100, height: 80 },
     hittable: true,
   });
-  expect(target && isNodeVisibleOnScreen(target, state.nodes)).toBe(true);
+  expect(target && createSnapshotVisibility(state.nodes).isVisibleOnScreen(target)).toBe(true);
 });
 
 test('buildSnapshotState handles nodes with missing fields', () => {
