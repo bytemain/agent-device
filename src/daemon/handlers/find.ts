@@ -12,8 +12,8 @@ import { expireRefFrame } from '../ref-frame.ts';
 import type { DaemonInvokeFn, DaemonRequest, DaemonResponse, SessionState } from '../types.ts';
 import { SessionStore } from '../session-store.ts';
 import { contextFromFlags } from '../context.ts';
-import { readCommandMessage, successText } from '../../utils/success-text.ts';
-import { errorResponse, noActiveSessionError } from './response.ts';
+import { readCommandMessage, successText } from '@agent-device/kernel/success-text';
+import { errorResponse, noActiveSessionError } from '../response.ts';
 import { withSystemSurfaceDisclosure } from './system-surface-disclosure.ts';
 import { recordSessionAction } from './handler-utils.ts';
 import { stripInternalInteractionFlags } from '../interaction-outcome-policy.ts';
@@ -27,7 +27,7 @@ import { resolveSelectorCaptureRuntimePlan } from '@agent-device/contracts/platf
 import type { TypeTextRuntimeOperations } from '@agent-device/contracts/type-text-runtime';
 import type { BindDeviceRuntime, InspectDeviceRuntimeFacts } from '../request-runtime-binding.ts';
 import { createFindTargetCapture, sparseFindSnapshotResponse } from './find-target-capture.ts';
-import { isSparseSnapshotQualityVerdict } from '../../snapshot-quality/verdict.ts';
+import { isSparseSnapshotQualityVerdict } from '@agent-device/capture-kit/snapshot-quality-verdict';
 
 type FindContext = {
   req: DaemonRequest;

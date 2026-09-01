@@ -5,10 +5,13 @@ import type {
 } from '@agent-device/contracts/element-text-runtime';
 import { isIosFamily } from '@agent-device/kernel/device';
 import { runtimeExecutionFromContext } from '../snapshot-runtime-capture-input.ts';
-import { emitDiagnostic } from '../../utils/diagnostics.ts';
+import { emitDiagnostic } from '@agent-device/host-kit/diagnostics';
 import type { SessionState } from '../types.ts';
 import type { SnapshotNode } from '@agent-device/kernel/snapshot';
-import { extractReadableText, prefersValueForReadableText } from '../../utils/text-surface.ts';
+import {
+  extractReadableText,
+  prefersValueForReadableText,
+} from '../../snapshot/snapshot-presentation/text-surface.ts';
 import type { ContextFromFlags } from './interaction-common.ts';
 import { resolveRectCenter } from './interaction-targeting.ts';
 

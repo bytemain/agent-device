@@ -7,40 +7,41 @@ import type { DaemonRequest, DaemonResponse, SessionState } from '../../types.ts
 import { AppError } from '@agent-device/kernel/errors';
 import { mkdtempForTestSync } from '../../../__tests__/test-utils/tmp-dir.ts';
 
-vi.mock('../../../platforms/apple/core/simulator.ts', async (importOriginal) => {
+vi.mock('@agent-device/platform-apple/runner/operations', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../../platforms/apple/core/simulator.ts')>();
-  return { ...actual, shutdownSimulator: vi.fn() };
+    await importOriginal<typeof import('@agent-device/platform-apple/runner/operations')>();
+  return {
+    ...actual,
+    stopIosRunnerSession: vi.fn(async () => {}),
+  };
 });
-vi.mock('../../../utils/exec.ts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../utils/exec.ts')>();
+vi.mock('@agent-device/platform-apple/perf', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@agent-device/platform-apple/perf')>();
+  return {
+    ...actual,
+    cleanupAppleXctracePerfCapture: vi.fn(async () => ({})),
+  };
+});
+vi.mock('@agent-device/platform-apple/macos', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@agent-device/platform-apple/macos')>();
+  return {
+    ...actual,
+    runMacOsAlertAction: vi.fn(async () => {}),
+  };
+});
+vi.mock('@agent-device/host-kit/command', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@agent-device/host-kit/command')>();
   return { ...actual, runCmd: vi.fn() };
 });
-vi.mock('../../../platforms/apple/core/runner-client.ts', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../../platforms/apple/core/runner-client.ts')>();
-  return { ...actual, stopIosRunnerSession: vi.fn(async () => {}) };
+vi.mock('@agent-device/platform-android/mechanics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@agent-device/platform-android/mechanics')>();
+  return {
+    ...actual,
+    cleanupAndroidNativePerfSession: vi.fn(async () => {}),
+    stopAndroidSnapshotHelperSessionForDevice: vi.fn(async () => {}),
+  };
 });
-vi.mock('../../../platforms/apple/core/perf-xctrace.ts', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../../platforms/apple/core/perf-xctrace.ts')>();
-  return { ...actual, cleanupAppleXctracePerfCapture: vi.fn(async () => ({})) };
-});
-vi.mock('../../../platforms/android/perf-native.ts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../platforms/android/perf-native.ts')>();
-  return { ...actual, cleanupAndroidNativePerfSession: vi.fn(async () => {}) };
-});
-vi.mock('../../../platforms/android/snapshot-helper.ts', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../../platforms/android/snapshot-helper.ts')>();
-  return { ...actual, stopAndroidSnapshotHelperSessionForDevice: vi.fn(async () => {}) };
-});
-vi.mock('../../../platforms/apple/os/macos/helper.ts', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../../platforms/apple/os/macos/helper.ts')>();
-  return { ...actual, runMacOsAlertAction: vi.fn(async () => {}) };
-});
-vi.mock('../../../utils/video.ts', () => ({
+vi.mock('../../../recording/video.ts', () => ({
   waitForStableFile: vi.fn(async () => {}),
   isPlayableVideo: vi.fn(async () => true),
 }));
@@ -53,16 +54,21 @@ import {
 import { teardownSessionResources as teardownProductionSessionResources } from '../../session-teardown.ts';
 import { platformResourceCleanup } from '../../../platform-runtime-resource-cleanup.ts';
 import { LeaseRegistry } from '../../lease-registry.ts';
-import { shutdownSimulator } from '../../../platforms/apple/core/simulator.ts';
-import { runCmd } from '../../../utils/exec.ts';
-import { cleanupAppleXctracePerfCapture } from '../../../platforms/apple/core/perf-xctrace.ts';
-import { cleanupAndroidNativePerfSession } from '../../../platforms/android/perf-native.ts';
-import { stopAndroidSnapshotHelperSessionForDevice } from '../../../platforms/android/snapshot-helper.ts';
-import { stopIosRunnerSession } from '../../../platforms/apple/core/runner-client.ts';
+import { runCmd } from '@agent-device/host-kit/command';
+import {
+  flushDiagnosticsToSessionFile,
+  withDiagnosticsScope,
+} from '@agent-device/host-kit/diagnostics';
+import {
+  cleanupAndroidNativePerfSession,
+  stopAndroidSnapshotHelperSessionForDevice,
+} from '@agent-device/platform-android/mechanics';
+import { stopIosRunnerSession } from '@agent-device/platform-apple/runner/operations';
+import { cleanupAppleXctracePerfCapture } from '@agent-device/platform-apple/perf';
 import { WEB_DESKTOP_DEVICE } from '../../../__tests__/test-utils/device-fixtures.ts';
 import { acquireDeviceClaim } from '../../device-claims.ts';
 import { inspectDeviceClaims } from '../../device-claim-inspection.ts';
-import { flushDiagnosticsToSessionFile, withDiagnosticsScope } from '../../../utils/diagnostics.ts';
+
 import {
   type DeviceBinding,
   localRuntimeOwner,
@@ -73,12 +79,11 @@ import type { PlatformRuntimeOperations } from '@agent-device/contracts/platform
 import type { ScreenRecordingLiveHandle } from '@agent-device/contracts/screen-recording-runtime';
 import { createDurableResourceEnvelope } from '@agent-device/capture-kit';
 import { screenRecordingResourceStore } from '../../screen-recording-resource-store.ts';
-import { lifecycleRuntimeFacts } from './application-lifecycle-runtime-harness.ts';
+import { lifecycleRuntimeFacts } from '../../__tests__/application-lifecycle-runtime-harness.ts';
 import { dispatchApplicationLifecycleEffect } from '../../__tests__/application-lifecycle-runtime-fixture.ts';
 
 export type { DeviceBinding, PlatformRuntimeOperations, SessionState };
 
-const mockShutdownSimulator = vi.mocked(shutdownSimulator);
 const mockRunCmd = vi.mocked(runCmd);
 const mockDispatchCommand = vi.mocked(dispatchApplicationLifecycleEffect);
 const mockCleanupAppleXctracePerfCapture = vi.mocked(cleanupAppleXctracePerfCapture);
@@ -246,7 +251,6 @@ export const sessionCloseShutdownFixture = Object.freeze({
   mockInspectDeviceRuntimeFacts,
   mockShutdownTargetRuntime,
   mockRunCmd,
-  mockShutdownSimulator,
   mockStopAndroidSnapshotHelperSessionForDevice,
   mockStopIosRunnerSession,
   narrowDeviceBinding,

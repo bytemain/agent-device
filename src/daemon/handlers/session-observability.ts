@@ -27,7 +27,7 @@ import { createNextAppLogFence } from '../app-log-start-preflight.ts';
 import type { BindDeviceRuntime, InspectDeviceRuntimeFacts } from '../request-runtime-binding.ts';
 import type { SessionStore } from '../session-store.ts';
 import type { DaemonRequest, DaemonResponse, SessionState } from '../types.ts';
-import { errorResponse, type DaemonFailureResponse } from './response.ts';
+import { errorResponse, type DaemonFailureResponse } from '../response.ts';
 import { handleAudioCommand } from './session-audio.ts';
 import { handlePerfRuntimeCommand } from './session-perf-runtime.ts';
 import { handleNetworkCommand } from './session-network.ts';
@@ -260,7 +260,7 @@ function handleLogsPath(params: LogsHandlerParams, backend: LogBackend): DaemonR
       failureMessage: status.failureMessage,
       hint:
         status.hint ??
-        'Grep the file for token-efficient debugging, e.g. grep -n "Error\\|Exception" <path>',
+        String.raw`Grep the file for token-efficient debugging, e.g. grep -n "Error\|Exception" <path>`,
       notes: status.notes,
     },
   };

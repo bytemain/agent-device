@@ -31,9 +31,9 @@ vi.mock('../snapshot-interactor-capture.ts', async () => {
   return { captureSnapshotWithInteractor: fixture.captureSnapshotThroughLegacyDispatchFixture };
 });
 
-vi.mock('../../../platforms/apple/core/runner-client.ts', async (importOriginal) => {
+vi.mock('@agent-device/platform-apple/runner/operations', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../../platforms/apple/core/runner-client.ts')>();
+    await importOriginal<typeof import('@agent-device/platform-apple/runner/operations')>();
   return {
     ...actual,
     runAppleRunnerCommand: mockRunAppleRunnerCommand,
@@ -343,7 +343,7 @@ test('press on an identity-empty container: container-based daemon response, des
   // And the WRITTEN .ad line re-resolves the descendant, not the container.
   const script = writeSessionScript(recordedSession);
   expect(script).toContain(
-    'press "role=\\"textview\\" label=\\"Connected devices\\" || label=\\"Connected devices\\""',
+    String.raw`press "role=\"textview\" label=\"Connected devices\" || label=\"Connected devices\""`,
   );
   expect(script).toContain('"role":"textview","label":"Connected devices"');
 });

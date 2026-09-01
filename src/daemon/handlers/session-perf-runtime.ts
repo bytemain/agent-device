@@ -28,14 +28,14 @@ import type { BindDeviceRuntime, InspectDeviceRuntimeFacts } from '../request-ru
 import { SessionStore } from '../session-store.ts';
 import type { DaemonRequest, DaemonResponse, SessionState } from '../types.ts';
 import { recordSessionAction } from './handler-utils.ts';
-import { errorResponse } from './response.ts';
+import { errorResponse } from '../response.ts';
 import {
   admitRuntimePlan,
   requireRuntimeBinding,
   unavailableRuntimeOperationResponse,
   unwrapAdmittedRuntimePlan,
   type AdmittedRuntimePlan,
-} from './session-runtime-admission.ts';
+} from '../session-runtime-admission.ts';
 
 export type PerfRuntimeHandlerParams = Readonly<{
   req: DaemonRequest;
@@ -414,7 +414,7 @@ function validatePerfFlagPlacement(req: DaemonRequest): void {
 }
 
 function timestampToken(): string {
-  return new Date().toISOString().replace(/[:.]/g, '-');
+  return new Date().toISOString().replaceAll(/[:.]/g, '-');
 }
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
