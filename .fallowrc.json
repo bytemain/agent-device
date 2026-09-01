@@ -20,6 +20,7 @@
     "src/utils/png-worker.ts",
     "scripts/patch-xcuitest-runner-icon.ts",
     "scripts/runner-request-count/run.ts",
+    "packages/capture-kit/src/ios-snapshot-engine/replay.ts",
     // #1596 regression fixture: runs as a real `node --experimental-strip-types`
     // subprocess (test/integration/daemon-replace-exit-flush.test.ts), so
     // dependency analysis cannot follow the runCmdSync string path to it.

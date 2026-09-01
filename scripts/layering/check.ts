@@ -110,6 +110,7 @@ import { sourceExecutionCompatibilityViolations } from './source-execution-polic
 import { sessionResourceOwnershipViolations } from './session-resource-ownership.ts';
 import { replayOwnershipViolations } from './replay-ownership.ts';
 import { applicationLifecycleOwnershipViolations } from './application-lifecycle-policy.ts';
+import { iosSnapshotEngineOwnershipViolations } from './ios-snapshot-engine-policy.ts';
 
 const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
   encoding: 'utf8',
@@ -557,6 +558,7 @@ export const LAYERING_RULE_IDS = [
   'platform-package-policy',
   'retired-platforms-zone',
   'replay-ownership',
+  'ios-snapshot-engine-ownership',
 ] as const;
 
 export type LayeringRuleId = (typeof LAYERING_RULE_IDS)[number];
@@ -598,6 +600,10 @@ export const LAYERING_RULES: Readonly<Record<LayeringRuleId, LayeringRule>> = {
     ),
   'retired-platforms-zone': () => checkRetiredPlatformsZone(listTrackedPlatformZoneFiles(repoRoot)),
   'replay-ownership': (context) => replayOwnershipViolations(context.sourceFiles),
+  'ios-snapshot-engine-ownership': (context) =>
+    iosSnapshotEngineOwnershipViolations(
+      [...context.sources].map(([path, source]) => ({ path, source })),
+    ),
 };
 
 export function main(): number {
