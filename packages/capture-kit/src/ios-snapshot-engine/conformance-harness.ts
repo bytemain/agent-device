@@ -51,6 +51,7 @@ type DifferentialMismatch = Readonly<{
 }>;
 
 export function swiftToolchainAvailable(): boolean {
+  if (process.platform !== 'darwin') return false;
   try {
     execFileSync('swift', ['--version'], { stdio: 'ignore' });
     return true;
