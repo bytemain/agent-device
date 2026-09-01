@@ -120,6 +120,8 @@ export const FACADE_BUDGETS: Readonly<Record<string, number>> = Object.freeze({
   // --- @agent-device/capture-kit ---
   // R60 review: audio-probe split into descriptor/status/recovery/live-process modules (+3 files).
   'packages/capture-kit/src/index.ts': 32,
+  // #2190 keeps iOS snapshot planning behind its dedicated subpath instead of the broad root.
+  'packages/capture-kit/src/ios-snapshot-planning.ts': 1,
   'packages/capture-kit/src/png-resize.ts': 18,
   'packages/capture-kit/src/png-rgb-difference.ts': 1,
   'packages/capture-kit/src/png-size.ts': 3,
@@ -222,6 +224,8 @@ export const FACADE_BUDGETS: Readonly<Record<string, number>> = Object.freeze({
   'packages/contracts/src/interaction-error.ts': 1,
   'packages/contracts/src/interaction-guarantees.ts': 1,
   'packages/contracts/src/interactor-types.ts': 1,
+  // #2190's iOS snapshot vocabulary has type-only imports and remains a one-module entry.
+  'packages/contracts/src/ios-snapshot.ts': 1,
   'packages/contracts/src/keyboard.ts': 1,
   'packages/contracts/src/logs-runtime-plan.ts': 5,
   'packages/contracts/src/managed-web-backend.ts': 1,

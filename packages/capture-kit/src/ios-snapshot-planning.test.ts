@@ -17,7 +17,7 @@ import {
   createIosSnapshotRequest,
   deriveIosCaptureHint,
   planIosSnapshot,
-} from '@agent-device/capture-kit';
+} from '@agent-device/capture-kit/ios-snapshot-planning';
 
 type CaptureHintFixture = Readonly<{
   name: string;
