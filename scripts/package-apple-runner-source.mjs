@@ -65,22 +65,31 @@ function packageSnapshotPresentationSource(root, options, summary) {
     return;
   }
   const outputRoot = path.join(root, SNAPSHOT_PRESENTATION_OUTPUT_DIR);
-  if (!options.checkOnly) {
-    fs.rmSync(outputRoot, { recursive: true, force: true });
-  }
-  const manifestSource = path.join(sourceRoot, SNAPSHOT_PRESENTATION_RUNNER_MANIFEST);
-  if (!fs.existsSync(manifestSource)) {
-    throw new Error(`Apple snapshot presentation runner manifest not found at ${manifestSource}`);
-  }
+  prepareSnapshotPresentationOutput(outputRoot, options.checkOnly);
+  const manifestSource = requireSnapshotPresentationManifest(sourceRoot);
   processDirectory(sourceRoot, options.checkOnly ? undefined : outputRoot, '', summary, {
     validateSwift: false,
     skipDirectoryNames: SNAPSHOT_PRESENTATION_DEVELOPMENT_DIR_NAMES,
     skipFilePaths: new Set(['Package.swift', SNAPSHOT_PRESENTATION_RUNNER_MANIFEST]),
   });
-  if (!options.checkOnly) {
-    fs.copyFileSync(manifestSource, path.join(outputRoot, 'Package.swift'));
-    summary.copiedFiles += 1;
-  }
+  copySnapshotPresentationManifest(manifestSource, outputRoot, summary, options.checkOnly);
+}
+
+function prepareSnapshotPresentationOutput(outputRoot, checkOnly) {
+  if (checkOnly) return;
+  fs.rmSync(outputRoot, { recursive: true, force: true });
+}
+
+function requireSnapshotPresentationManifest(sourceRoot) {
+  const manifestSource = path.join(sourceRoot, SNAPSHOT_PRESENTATION_RUNNER_MANIFEST);
+  if (fs.existsSync(manifestSource)) return manifestSource;
+  throw new Error(`Apple snapshot presentation runner manifest not found at ${manifestSource}`);
+}
+
+function copySnapshotPresentationManifest(manifestSource, outputRoot, summary, checkOnly) {
+  if (checkOnly) return;
+  fs.copyFileSync(manifestSource, path.join(outputRoot, 'Package.swift'));
+  summary.copiedFiles += 1;
 }
 
 function prepareOutput(root, outputRoot, checkOnly) {

@@ -185,7 +185,7 @@ extension RunnerTests {
         interactiveOnly: false, depth: nil, scope: nil, raw: false)
     ).nodes
 
-    XCTAssertEqual(presented?.compactMap(\.label), ["App"])
+    XCTAssertEqual(presented.compactMap(\.label), ["App"])
   }
 
   func testRegularPresentationPublishesEffectiveRectWhileRawKeepsReportedFrame() throws {
