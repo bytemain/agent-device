@@ -8,7 +8,7 @@ import {
   isSemanticActionNode,
   isScrollableSnapshotType,
   type SnapshotTreeRuleContext,
-} from '../tree.ts';
+} from './tree.ts';
 
 const ACTION_SHELF_MINIMUM_BUTTONS = 3;
 const ACTION_SHELF_EDGE_TOLERANCE = 2;

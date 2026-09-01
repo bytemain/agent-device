@@ -282,6 +282,11 @@
       ]
     },
     {
+      "comment": "The iOS snapshot engine is an explicit workspace-package façade; its default engine object is consumed by the later runner integration layer and by external package consumers rather than this layer's source graph.",
+      "file": "packages/capture-kit/src/ios-snapshot-engine/index.ts",
+      "exports": ["iosSnapshotEngine"]
+    },
+    {
       "comment": "Android mechanics facet: the package exports the complete named implementation seam for root/core/SDK consumers and package-owned tests; Fallow's production graph does not follow workspace subpath imports through the package exports map.",
       "file": "packages/platform-android/src/mechanics.ts",
       "exports": ["*"]

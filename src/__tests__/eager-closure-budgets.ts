@@ -122,6 +122,8 @@ export const FACADE_BUDGETS: Readonly<Record<string, number>> = Object.freeze({
   'packages/capture-kit/src/index.ts': 32,
   // #2190 keeps iOS snapshot planning behind its dedicated subpath instead of the broad root.
   'packages/capture-kit/src/ios-snapshot-planning.ts': 1,
+  // #2191 keeps the iOS snapshot engine behind its dedicated subpath instead of the broad root.
+  'packages/capture-kit/src/ios-snapshot-engine/index.ts': 36,
   'packages/capture-kit/src/png-resize.ts': 18,
   'packages/capture-kit/src/png-rgb-difference.ts': 1,
   'packages/capture-kit/src/png-size.ts': 3,

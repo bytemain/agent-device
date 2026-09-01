@@ -6,7 +6,7 @@ import {
   isMostlyViewportSizedRect,
   mergeReplacement,
   type SnapshotTreeRuleContext,
-} from '../tree.ts';
+} from './tree.ts';
 
 export function collectIosImplicitScrollableActions(
   nodes: RawSnapshotNode[],

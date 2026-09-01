@@ -18,6 +18,10 @@
       "types": "./src/ios-snapshot-planning.ts",
       "default": "./src/ios-snapshot-planning.ts"
     },
+    "./ios-snapshot-engine": {
+      "types": "./src/ios-snapshot-engine/index.ts",
+      "default": "./src/ios-snapshot-engine/index.ts"
+    },
     "./mobile-snapshot-semantics": {
       "types": "./src/mobile-snapshot-semantics.ts",
       "default": "./src/mobile-snapshot-semantics.ts"

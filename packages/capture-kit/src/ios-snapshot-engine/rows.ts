@@ -8,7 +8,7 @@ import {
   mergeReplacement,
   shouldSuppressRepeatedTextDescendant,
   type SnapshotTreeRuleContext,
-} from '../tree.ts';
+} from './tree.ts';
 
 export function collectIosRowPresentation(
   nodes: RawSnapshotNode[],

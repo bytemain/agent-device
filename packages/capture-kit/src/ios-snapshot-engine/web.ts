@@ -5,7 +5,7 @@ import {
   findNearestAncestor,
   mergeReplacement,
   type SnapshotTreeRuleContext,
-} from '../tree.ts';
+} from './tree.ts';
 
 /**
  * WebKit exposes HTML text through an `Other -> StaticText` wrapper pair on iOS.

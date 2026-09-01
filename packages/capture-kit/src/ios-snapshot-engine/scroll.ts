@@ -8,7 +8,7 @@ import {
   isScrollableSnapshotType,
   updateReplacement,
   type SnapshotTreeRuleContext,
-} from '../tree.ts';
+} from './tree.ts';
 
 export function collectIosScrollIndicatorPresentation(
   nodes: RawSnapshotNode[],

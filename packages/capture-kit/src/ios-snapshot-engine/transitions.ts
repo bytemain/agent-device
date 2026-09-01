@@ -1,11 +1,7 @@
 import type { RawSnapshotNode, Rect } from '@agent-device/kernel/snapshot';
 import { rectContains } from '@agent-device/kernel/rect';
 import { extractNodeText, normalizeType } from '@agent-device/contracts/snapshot';
-import {
-  collectChildrenByParent,
-  mergeReplacement,
-  type SnapshotTreeRuleContext,
-} from '../tree.ts';
+import { collectChildrenByParent, mergeReplacement, type SnapshotTreeRuleContext } from './tree.ts';
 import { collectIosReplacedActionShelves } from './action-shelf.ts';
 
 const TITLE_PIECE_GAP_TOLERANCE = 12;

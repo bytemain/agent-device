@@ -22,7 +22,7 @@
 
 import type { SnapshotNode } from '@agent-device/kernel/snapshot';
 import { resolveRectCenter } from '@agent-device/kernel/rect-center';
-import { findNearestScrollableContainer } from '../snapshot/snapshot-presentation/tree.ts';
+import { findNearestScrollableContainer } from '@agent-device/capture-kit/ios-snapshot-engine';
 import {
   buildAncestryChain,
   buildIndexMap,
