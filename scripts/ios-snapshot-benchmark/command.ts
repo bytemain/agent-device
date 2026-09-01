@@ -52,7 +52,7 @@ export function openFixture(
     '--foreground',
   ]);
   if (!fixture.launchUrl || !hasDeepLinkConfirmation(opened.payload)) return opened;
-  const accepted = pressFixtureTarget(context, 'label="Open"');
+  const accepted = runCli(context, ['alert', 'accept']);
   if (accepted.ok) return opened;
   return {
     ...opened,
@@ -75,7 +75,7 @@ export async function openFixtureAsync(
     '--foreground',
   ]);
   if (!fixture.launchUrl || !hasDeepLinkConfirmation(opened.payload)) return opened;
-  const accepted = await pressFixtureTargetAsync(context, 'label="Open"');
+  const accepted = await runCliAsync(context, ['alert', 'accept']);
   if (accepted.ok) return opened;
   return {
     ...opened,
@@ -105,6 +105,14 @@ export function pressFixtureTarget(context: CliContext, selector: string): CliRe
   return runCli(context, ['click', selector]);
 }
 
+export function scrollFixtureToBottom(context: CliContext): CliResult {
+  return runCli(context, ['scroll', 'bottom', '--settle']);
+}
+
+export async function scrollFixtureToBottomAsync(context: CliContext): Promise<CliResult> {
+  return await runCliAsync(context, ['scroll', 'bottom', '--settle']);
+}
+
 export async function pressFixtureTargetAsync(
   context: CliContext,
   selector: string,
@@ -123,8 +131,11 @@ export function snapshotHasAnchor(payload: unknown, anchorText: string): boolean
 }
 
 export function hasDeepLinkConfirmation(payload: unknown): boolean {
+  const root = asRecord(payload);
+  const data = asRecord(root?.data);
+  if (readString(data?.message)?.startsWith('Open in ') === true) return true;
   return snapshotNodes(payload).some((record) => {
-    const role = readString(record.role);
+    const role = readString(record.role) ?? readString(record.type)?.toLowerCase();
     const label = readString(record.label);
     return role === 'alert' && label?.startsWith('Open in ') === true;
   });
