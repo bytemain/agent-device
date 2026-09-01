@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
+import { test } from 'node:test';
 import fc from 'fast-check';
-import { test } from 'vitest';
 import {
   compareDifferentialCases,
   swiftToolchainAvailable,
   SWIFT_RUN_TIMEOUT_MS,
   writeDifferentialFailureArtifact,
-} from './conformance-harness.ts';
-import { differentialBatchArbitrary } from './conformance-generator.ts';
-import { readIosSnapshotEngineFixture } from './conformance-fixture.ts';
+} from '../packages/capture-kit/src/ios-snapshot-engine/conformance-harness.ts';
+import { differentialBatchArbitrary } from '../packages/capture-kit/src/ios-snapshot-engine/conformance-generator.ts';
+import { readIosSnapshotEngineFixture } from '../packages/capture-kit/src/ios-snapshot-engine/conformance-fixture.ts';
 
 type DifferentialCase = Parameters<typeof compareDifferentialCases>[0][number];
 
@@ -16,9 +16,11 @@ const FUZZ_SEEDS = [219101, 219102, 219103, 219104];
 const RUNS_PER_SEED = 8;
 const MAX_TOTAL_DURATION_MS = 60_000;
 
-const differentialTest = swiftToolchainAvailable() ? test : test.skip;
+if (!swiftToolchainAvailable()) {
+  throw new Error('iOS snapshot differential requires the macOS Swift toolchain');
+}
 
-differentialTest('authored Swift and TypeScript golden cases agree', () => {
+test('authored Swift and TypeScript golden cases agree', { timeout: SWIFT_RUN_TIMEOUT_MS }, () => {
   const fixture = readIosSnapshotEngineFixture();
   const cases = fixture.cases
     .filter((testCase) => testCase.swift && !testCase.interactiveOnly)
@@ -36,41 +38,44 @@ differentialTest('authored Swift and TypeScript golden cases agree', () => {
   assert.equal(mismatch, undefined, mismatch ? JSON.stringify(mismatch, null, 2) : '');
 });
 
-differentialTest('raw unscoped depth compares the same acquisition frontier', () => {
-  const fixture = readIosSnapshotEngineFixture();
-  const depthCase = fixture.cases.find(
-    (testCase) => testCase.name === 'raw unscoped depth uses the acquisition frontier',
-  );
-  assert.ok(depthCase);
-  const deepNode = depthCase.nodes.at(-1);
-  assert.ok(deepNode);
-  const mismatch = compareDifferentialCases([
-    {
-      name: 'raw-depth-frontier-with-malformed-tail',
-      projection: 'raw',
-      interactiveOnly: false,
-      depth: 1,
-      scope: null,
-      foldPolicy: 'cursor-projected',
-      viewport: fixture.viewport,
-      nodes: [...depthCase.nodes, { ...deepNode, index: 1, parentIndex: 1, depth: 2 }],
-    },
-  ]);
-  assert.equal(mismatch, undefined, mismatch ? JSON.stringify(mismatch, null, 2) : '');
-});
+test(
+  'raw unscoped depth compares the same acquisition frontier',
+  { timeout: SWIFT_RUN_TIMEOUT_MS },
+  () => {
+    const fixture = readIosSnapshotEngineFixture();
+    const depthCase = fixture.cases.find(
+      (testCase) => testCase.name === 'raw unscoped depth uses the acquisition frontier',
+    );
+    assert.ok(depthCase);
+    const deepNode = depthCase.nodes.at(-1);
+    assert.ok(deepNode);
+    const mismatch = compareDifferentialCases([
+      {
+        name: 'raw-depth-frontier-with-malformed-tail',
+        projection: 'raw',
+        interactiveOnly: false,
+        depth: 1,
+        scope: null,
+        foldPolicy: 'cursor-projected',
+        viewport: fixture.viewport,
+        nodes: [...depthCase.nodes, { ...deepNode, index: 1, parentIndex: 1, depth: 2 }],
+      },
+    ]);
+    assert.equal(mismatch, undefined, mismatch ? JSON.stringify(mismatch, null, 2) : '');
+  },
+);
 
-differentialTest('deterministic Swift/TypeScript differential fuzz stays under 60000ms', () => {
-  assertDifferentialFuzz();
-});
-
-function assertDifferentialFuzz(): void {
-  const startedAt = performance.now();
-  for (const seed of FUZZ_SEEDS) {
-    assertDifferentialSeed(seed);
-    assertWithinKillCriterion(startedAt, seed);
-  }
-  assert.ok(true);
-}
+test(
+  'deterministic Swift/TypeScript differential fuzz stays under 60000ms',
+  { timeout: SWIFT_RUN_TIMEOUT_MS * FUZZ_SEEDS.length },
+  () => {
+    const startedAt = performance.now();
+    for (const seed of FUZZ_SEEDS) {
+      assertDifferentialSeed(seed);
+      assertWithinKillCriterion(startedAt, seed);
+    }
+  },
+);
 
 function assertDifferentialSeed(seed: number): void {
   const result = fc.check(

@@ -46,6 +46,7 @@ export type CheckId =
   | 'provider-integration'
   | 'integration-node'
   | 'macos-coverage'
+  | 'ios-snapshot-differential'
   | 'integration-progress'
   | 'swift-runner-ios'
   | 'swift-runner-macos'
@@ -105,6 +106,7 @@ export const ALL_CHECKS: readonly CheckId[] = [
   // run before the related-project workload heats the host.
   'integration-node',
   'macos-coverage',
+  'ios-snapshot-differential',
   'vitest-related',
   'unit',
   'unit-ci',
@@ -435,6 +437,15 @@ const BUILD_OWNERSHIP: ReadonlyArray<{
   detail: string;
   owns: (file: string) => boolean;
 }> = [
+  {
+    check: 'ios-snapshot-differential',
+    rule: 'own:ios-snapshot-differential',
+    detail: 'the required macOS lane runs the Swift/TypeScript snapshot differential',
+    owns: (file) =>
+      file.startsWith('packages/capture-kit/src/ios-snapshot-engine/') ||
+      file.startsWith('apple/snapshot-presentation/') ||
+      file === 'contracts/fixtures/ios-snapshot-engine-conformance.json',
+  },
   // Both platform builds compile the same runner sources, and each is a separate
   // gate in a separate lane, so a Swift change owns both.
   {
