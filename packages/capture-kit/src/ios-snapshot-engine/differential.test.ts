@@ -36,6 +36,29 @@ differentialTest('authored Swift and TypeScript golden cases agree', () => {
   assert.equal(mismatch, undefined, mismatch ? JSON.stringify(mismatch, null, 2) : '');
 });
 
+differentialTest('raw unscoped depth compares the same acquisition frontier', () => {
+  const fixture = readIosSnapshotEngineFixture();
+  const depthCase = fixture.cases.find(
+    (testCase) => testCase.name === 'raw unscoped depth uses the acquisition frontier',
+  );
+  assert.ok(depthCase);
+  const deepNode = depthCase.nodes.at(-1);
+  assert.ok(deepNode);
+  const mismatch = compareDifferentialCases([
+    {
+      name: 'raw-depth-frontier-with-malformed-tail',
+      projection: 'raw',
+      interactiveOnly: false,
+      depth: 1,
+      scope: null,
+      foldPolicy: 'cursor-projected',
+      viewport: fixture.viewport,
+      nodes: [...depthCase.nodes, { ...deepNode, index: 1, parentIndex: 1, depth: 2 }],
+    },
+  ]);
+  assert.equal(mismatch, undefined, mismatch ? JSON.stringify(mismatch, null, 2) : '');
+});
+
 differentialTest('deterministic Swift/TypeScript differential fuzz stays under 60000ms', () => {
   assertDifferentialFuzz();
 });

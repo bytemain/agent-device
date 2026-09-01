@@ -422,6 +422,77 @@
       }
     },
     {
+      "name": "raw unscoped depth uses the acquisition frontier",
+      "swift": true,
+      "projection": "raw",
+      "interactiveOnly": false,
+      "depth": 1,
+      "scope": null,
+      "foldPolicy": "cursor-projected",
+      "truncated": false,
+      "residue": [],
+      "nodes": [
+        {
+          "index": 0,
+          "type": "Application",
+          "label": "App",
+          "rect": { "x": 0, "y": 0, "width": 320, "height": 240 },
+          "enabled": true,
+          "hittable": false,
+          "depth": 0
+        },
+        {
+          "index": 1,
+          "type": "ScrollView",
+          "label": "Outer",
+          "rect": { "x": 16, "y": 20, "width": 180, "height": 180 },
+          "enabled": true,
+          "hittable": false,
+          "depth": 1,
+          "parentIndex": 0
+        },
+        {
+          "index": 2,
+          "type": "Button",
+          "label": "Deep child",
+          "rect": { "x": 20, "y": 40, "width": 80, "height": 40 },
+          "enabled": true,
+          "hittable": true,
+          "depth": 2,
+          "parentIndex": 1
+        }
+      ],
+      "expected": {
+        "outcome": "success",
+        "truncated": false,
+        "residue": [],
+        "nodes": [
+          {
+            "index": 0,
+            "type": "Application",
+            "label": "App",
+            "rect": { "x": 0, "y": 0, "width": 320, "height": 240 },
+            "depth": 0,
+            "parentIndex": null,
+            "hittable": false,
+            "hiddenContentAbove": false,
+            "hiddenContentBelow": false
+          },
+          {
+            "index": 1,
+            "type": "ScrollView",
+            "label": "Outer",
+            "rect": { "x": 16, "y": 20, "width": 180, "height": 180 },
+            "depth": 1,
+            "parentIndex": 0,
+            "hittable": false,
+            "hiddenContentAbove": false,
+            "hiddenContentBelow": false
+          }
+        ]
+      }
+    },
+    {
       "name": "scope reroots wrappers and regular depth",
       "swift": true,
       "projection": "regular",

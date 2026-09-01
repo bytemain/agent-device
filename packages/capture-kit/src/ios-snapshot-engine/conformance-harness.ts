@@ -78,7 +78,7 @@ function runSwiftCases(cases: readonly DifferentialCase[]): DifferentialOutcome[
   const stdout = execFileSync(swiftConformanceExecutable(), [], {
     cwd: REPO_ROOT,
     encoding: 'utf8',
-    input: JSON.stringify({ cases: cases.map(prepareSwiftAcquisition) }),
+    input: JSON.stringify({ cases: cases.map(prepareDifferentialAcquisition) }),
     timeout: SWIFT_RUN_TIMEOUT_MS,
     maxBuffer: 8 * 1024 * 1024,
   });
@@ -114,7 +114,7 @@ function swiftConformanceExecutable(): string {
   return swiftHarnessExecutable;
 }
 
-function prepareSwiftAcquisition(testCase: DifferentialCase): DifferentialCase {
+function prepareDifferentialAcquisition(testCase: DifferentialCase): DifferentialCase {
   if (testCase.projection !== 'raw' || testCase.scope !== null || testCase.depth === null) {
     return testCase;
   }
@@ -130,6 +130,7 @@ function withoutName(outcome: DifferentialOutcome): Omit<DifferentialOutcome, 'n
 }
 
 export function runTypeScriptCase(testCase: DifferentialCase): DifferentialOutcome {
+  const acquisitionInput = prepareDifferentialAcquisition(testCase);
   const request = createIosSnapshotRequest({
     projection: testCase.projection,
     interactiveOnly: testCase.interactiveOnly,
@@ -140,7 +141,7 @@ export function runTypeScriptCase(testCase: DifferentialCase): DifferentialOutco
     producer: 'simulator-ax-bridge',
     intent: 'full',
     hint: { ...deriveIosCaptureHint(request), acquisitionIntent: 'full' },
-    nodes: testCase.nodes,
+    nodes: acquisitionInput.nodes,
     truncated: false,
     viewport: { kind: 'reported', rect: testCase.viewport },
     lineage: { targetId: 'differential-target', generation: 'differential-generation' },
