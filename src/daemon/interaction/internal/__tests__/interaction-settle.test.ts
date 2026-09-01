@@ -1,7 +1,7 @@
 import type { CommandFlags } from '@agent-device/contracts/command';
 import { legacyDispatchCapture } from '../../../__tests__/legacy-snapshot-capture-fixture.ts';
 import { test, expect, vi, beforeEach } from 'vitest';
-import { handleInteractionCommands } from '../../../handlers/interaction.ts';
+import { createInteractionRuntime, handleInteractionCommands } from '../../index.ts';
 import type { SessionStore } from '../../../session-store.ts';
 import type { SessionState } from '../../../types.ts';
 import type { SnapshotBackend } from '@agent-device/kernel/snapshot';
@@ -10,7 +10,6 @@ import { setSessionSnapshot } from '../../../session-snapshot.ts';
 import { activateCompleteRefFrame } from '../../../ref-frame.ts';
 import { makeSessionStore } from '../../../../__tests__/test-utils/store-factory.ts';
 import { makeIosSession } from '../../../../__tests__/test-utils/session-factories.ts';
-import { createInteractionRuntime } from '../../index.ts';
 import {
   clearRequestAbortRegistration,
   registerRequestAbort,
@@ -21,7 +20,7 @@ import {
   mockFillPoint,
   mockTapPoint,
   resetGetRuntimeFixture,
-} from '../../../handlers/__tests__/interaction-get-runtime-fixture.ts';
+} from '../../../__tests__/interaction-get-runtime-fixture.ts';
 
 // #1101 --settle daemon response shape: the settle payload (diff + settled +
 // refsGeneration) rides the wire response through the shared builder, and a
@@ -30,14 +29,6 @@ import {
 // beyond a few poll ticks.
 
 const mockCaptureSnapshotForSession = vi.hoisted(() => vi.fn());
-
-vi.mock('../../index.ts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../index.ts')>();
-  return {
-    ...actual,
-    captureSnapshotForSession: mockCaptureSnapshotForSession,
-  };
-});
 
 const BEFORE_NODES = [
   { index: 0, type: 'Application', rect: { x: 0, y: 0, width: 390, height: 844 } },
@@ -167,6 +158,13 @@ beforeEach(() => {
   mockCaptureSnapshotForSession.mockImplementation(emulateCaptureSnapshotForSession);
 });
 
+function invokeInteraction(params: Parameters<typeof handleInteractionCommands>[0]) {
+  return handleInteractionCommands({
+    ...params,
+    captureSnapshotForSession: mockCaptureSnapshotForSession,
+  });
+}
+
 const SETTLE_FLAGS = { settle: true, settleQuietMs: 25, timeoutMs: 2_000 };
 
 type SettlePayload = {
@@ -209,7 +207,7 @@ test('press --settle responds with the settled diff, refsGeneration, and activat
   // settled post-action tree.
   mockCommandDispatch({ snapshots: [BEFORE_NODES, AFTER_NODES, AFTER_NODES, AFTER_NODES] });
 
-  const response = await handleInteractionCommands({
+  const response = await invokeInteraction({
     req: {
       token: 't',
       session: sessionName,
@@ -285,7 +283,7 @@ test('press --settle on a removals-only diff attaches the unchanged interactive 
     snapshots: [MODAL_BEFORE_NODES, MODAL_AFTER_NODES, MODAL_AFTER_NODES],
   });
 
-  const response = await handleInteractionCommands({
+  const response = await invokeInteraction({
     req: {
       token: 't',
       session: sessionName,
@@ -321,7 +319,7 @@ test('press --settle rejects an expired-frame ref before dispatch or observation
     new Error('dispatch should not be called for an expired-frame ref'),
   );
 
-  const response = await handleInteractionCommands({
+  const response = await invokeInteraction({
     req: {
       token: 't',
       session: sessionName,
@@ -360,7 +358,7 @@ test('a settle observation without a diff leaves ref staleness untouched', async
     return {};
   });
 
-  const response = await handleInteractionCommands({
+  const response = await invokeInteraction({
     req: {
       token: 't',
       session: sessionName,
@@ -421,7 +419,7 @@ test('a stalled settle capture receives its deadline signal and leaves the inter
   );
 
   const startedAt = Date.now();
-  const response = await handleInteractionCommands({
+  const response = await invokeInteraction({
     req: {
       token: 't',
       session: sessionName,
@@ -450,7 +448,7 @@ test('bare timeout without --settle stays compatible', async () => {
   seedSession(sessionName, sessionStore);
   mockCommandDispatch({ snapshots: [BEFORE_NODES] });
 
-  const compatible = await handleInteractionCommands({
+  const compatible = await invokeInteraction({
     req: {
       token: 't',
       session: sessionName,
@@ -474,7 +472,7 @@ test('settle-specific tuning flags without --settle are rejected', async () => {
   seedSession(sessionName, sessionStore);
   mockCommandDispatch({ snapshots: [BEFORE_NODES] });
 
-  const response = await handleInteractionCommands({
+  const response = await invokeInteraction({
     req: {
       token: 't',
       session: sessionName,
@@ -498,7 +496,7 @@ test('fill @ref --settle carries the settle payload on the ref wire shape', asyn
   seedSession(sessionName, sessionStore);
   mockCommandDispatch({ snapshots: [AFTER_NODES, AFTER_NODES] });
 
-  const response = await handleInteractionCommands({
+  const response = await invokeInteraction({
     req: {
       token: 't',
       session: sessionName,

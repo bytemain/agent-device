@@ -76,6 +76,7 @@ import {
 } from './model.ts';
 import {
   checkDaemonModularityRatchets,
+  checkRetiredInteractionPaths,
   checkRetiredSessionLifecyclePaths,
   checkRetiredSessionObservabilityPaths,
   daemonModularitySummary,
@@ -587,6 +588,7 @@ export const LAYERING_RULES: Readonly<Record<LayeringRuleId, LayeringRule>> = {
   'session-state-ownership': (context) => checkSessionStateOwnership(context.sources),
   'daemon-modularity-ratchets': (context) => [
     ...checkDaemonModularityRatchets(context.edges, context.typeCycleMembers),
+    ...checkRetiredInteractionPaths(context.sourceFiles),
     ...checkRetiredSessionLifecyclePaths(context.sourceFiles),
     ...checkRetiredSessionObservabilityPaths(context.sourceFiles),
   ],

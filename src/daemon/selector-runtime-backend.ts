@@ -12,7 +12,7 @@ import { createDaemonRuntimePolicy } from './runtime-policy.ts';
 import { createDaemonRuntimeSessionStore } from './runtime-session.ts';
 import { contextFromFlags } from './context.ts';
 import { ensureDeviceReady } from './device-ready.ts';
-import { readTextForNode } from './interaction/index.ts';
+import { readTextForNode } from './interaction-read.ts';
 import { setSessionSnapshot } from './session-snapshot.ts';
 import type { ContextFromFlags } from './interaction/index.ts';
 import { SessionStore } from './session-store.ts';

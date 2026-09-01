@@ -2,6 +2,7 @@ import path from 'node:path';
 import {
   LOGICAL_MODULE_POLICIES,
   matchesDeclaredRoot,
+  INTERACTION_RETIRED_HANDLER_PATHS,
   SESSION_LIFECYCLE_RETIRED_HANDLER_PATHS,
   SESSION_OBSERVABILITY_RETIRED_HANDLER_PATHS,
   type LogicalModulePolicy,
@@ -74,6 +75,15 @@ export function checkRetiredSessionObservabilityPaths(
     SESSION_OBSERVABILITY_RETIRED_HANDLER_PATHS,
     /^src\/daemon\/handlers\/session-(?:observability|perf|logs|events|network|audio)(?:-[^/]+)?\.ts$/,
     'session observability',
+  );
+}
+
+export function checkRetiredInteractionPaths(sourceFiles: readonly string[]): LayeringViolation[] {
+  return checkRetiredHandlerPaths(
+    sourceFiles,
+    INTERACTION_RETIRED_HANDLER_PATHS,
+    /^src\/daemon\/handlers\/(?:find(?:-[^/]+)?|interaction(?:-[^/]+)?)\.ts$/,
+    'interaction',
   );
 }
 

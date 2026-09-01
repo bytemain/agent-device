@@ -1,0 +1,30 @@
+import type { CommandFlags } from '@agent-device/contracts/command';
+import type { DaemonResponse } from './types.ts';
+import { errorResponse } from './response.ts';
+
+const REF_UNSUPPORTED_FLAG_MAP: ReadonlyArray<[keyof CommandFlags, string]> = [
+  ['snapshotDepth', '--depth'],
+  ['snapshotScope', '--scope'],
+  ['snapshotRaw', '--raw'],
+];
+
+export function refSnapshotFlagGuardResponse(
+  command: 'press' | 'fill' | 'get' | 'longpress' | 'hover',
+  flags: CommandFlags | undefined,
+): DaemonResponse | null {
+  const unsupported = unsupportedRefSnapshotFlags(flags);
+  if (unsupported.length === 0) return null;
+  return errorResponse(
+    'INVALID_ARGS',
+    `${command} @ref does not support ${unsupported.join(', ')}.`,
+  );
+}
+
+function unsupportedRefSnapshotFlags(flags: CommandFlags | undefined): string[] {
+  if (!flags) return [];
+  const unsupported: string[] = [];
+  for (const [key, label] of REF_UNSUPPORTED_FLAG_MAP) {
+    if (flags[key] !== undefined) unsupported.push(label);
+  }
+  return unsupported;
+}

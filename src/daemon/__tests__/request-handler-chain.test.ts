@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import { INTERNAL_COMMANDS } from '../../command-catalog.ts';
+import { eagerClosureOf } from '../../__tests__/eager-import-closure.fixtures.ts';
 import { LeaseRegistry } from '../lease-registry.ts';
 import { runRequestHandlerChain } from '../request-handler-chain.ts';
 import { getDaemonRouteOwnerFiles } from '../route-owner-files.ts';
@@ -10,7 +12,7 @@ import { LINUX_DEVICE } from '../../__tests__/test-utils/device-fixtures.ts';
 import { makeIosSession, makeSession } from '../../__tests__/test-utils/session-factories.ts';
 import { makeSnapshotState } from '../../__tests__/test-utils/snapshot-builders.ts';
 import { makeSessionStore } from '../../__tests__/test-utils/store-factory.ts';
-import { dispatchSwipeViaRuntime } from '../handlers/interaction-gesture.ts';
+import { handleInteractionCommands } from '../interaction/index.ts';
 import { createPlatformRuntimeGateway } from '../../platform-runtime.ts';
 import { createRequestRuntimeBindings } from '../request-runtime-binding.ts';
 import { createLocalLinuxToolProvider, withLinuxToolProvider } from '@agent-device/platform-linux';
@@ -92,6 +94,19 @@ test('route owner files match the production module loaders', () => {
   assert.ok(
     !/ownerFile/.test(source),
     'owner-file paths are tooling-only: keep them in route-owner-files.ts, not the production chain module',
+  );
+});
+
+test('interaction route implementations stay outside the request handler eager closure', () => {
+  const chainFile = fileURLToPath(new URL('../request-handler-chain.ts', import.meta.url));
+  const eagerModules = eagerClosureOf(chainFile);
+  const interactionModules = eagerModules.filter((file) =>
+    file.includes('/src/daemon/interaction/'),
+  );
+  assert.deepEqual(
+    interactionModules,
+    [],
+    'interaction routes must be loaded only through the request handler lazy closure',
   );
 });
 
@@ -265,7 +280,7 @@ test('duration-less public coordinate swipe retains Linux drag behavior', async 
   const response = await withLinuxToolProvider(
     provider,
     async () =>
-      await dispatchSwipeViaRuntime({
+      await handleInteractionCommands({
         inspectFacts: bindings.inspectFacts,
         bindDevice: bindings.bindDevice,
         req: {
@@ -284,6 +299,7 @@ test('duration-less public coordinate swipe retains Linux drag behavior', async 
       }),
   );
 
+  assert.ok(response);
   assert.equal(response.ok, true);
   if (!response.ok) return;
   assert.ok(response.data);

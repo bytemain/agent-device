@@ -1,7 +1,7 @@
 import { test, expect, vi, beforeEach } from 'vitest';
 import { legacyDispatchCapture } from '../../__tests__/legacy-snapshot-capture-fixture.ts';
-import { handleFindCommands } from '../find.ts';
-import { getRuntimeBindings } from './interaction-get-runtime-fixture.ts';
+import { handleFindCommands } from '../../interaction/index.ts';
+import { getRuntimeBindings } from '../../__tests__/interaction-get-runtime-fixture.ts';
 import { dispatchFindReadOnlyViaRuntime, dispatchWaitViaRuntime } from '../../selector-runtime.ts';
 import type { DaemonRequest, DaemonResponse } from '../../types.ts';
 import { ANDROID_SYSTEM_SURFACE_DISCLOSURE } from '../../../core/android-system-surface-disclosure.ts';
@@ -29,7 +29,7 @@ vi.mock('../../device-ready.ts', () => ({
 
 import { resolveTargetDevice } from '../../../core/dispatch-resolve.ts';
 import { ANDROID_EMULATOR } from '../../../__tests__/test-utils/device-fixtures.ts';
-import { withSystemSurfaceDisclosure } from '../system-surface-disclosure.ts';
+import { withSystemSurfaceDisclosure } from '../../system-surface-disclosure.ts';
 
 // The occluding-shade capture every scenario below consumes: no application window content, one
 // active quick-settings surface. The Android capture route stamps systemSurfaceOnly on both the

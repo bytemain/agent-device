@@ -1,11 +1,17 @@
 import type { CommandFlags } from '@agent-device/contracts/command';
+import type { AndroidObservationAdapter } from '@agent-device/contracts/android-observation';
 import type { Rect, SnapshotPreferredBackend, SnapshotState } from '@agent-device/kernel/snapshot';
 import type { DeviceInfo } from '@agent-device/kernel/device';
 import type { CommandSessionStore } from '../../../runtime-contract.ts';
+import type {
+  BindDeviceRuntime,
+  InspectDeviceRuntimeFacts,
+} from '../../request-runtime-binding.ts';
 import type { DeferredInteractionOutcomeMark } from '../../deferred-interaction-outcome.ts';
+import type { DaemonInvokeFn, DaemonRequest, SessionState } from '../../types.ts';
 import type { RecordActionEntry } from '../../session-action-recorder.ts';
 import type { DaemonCommandContext } from '../../context.ts';
-import type { SessionState } from '../../types.ts';
+import type { SessionStore } from '../../session-store.ts';
 import type { BoundGestureExecutor } from '../../gesture-runtime.ts';
 import type { BoundTouchExecutor } from '../../touch-runtime.ts';
 import type { BoundSnapshotCapture } from '../../snapshot-runtime-binding.ts';
@@ -16,6 +22,46 @@ export type ContextFromFlags = (
   appBundleId?: string,
   traceLogPath?: string,
 ) => DaemonCommandContext;
+
+export type CaptureSnapshotForSession = (
+  session: SessionState,
+  flags: CommandFlags | undefined,
+  sessionStore: SessionStore,
+  contextFromFlags: ContextFromFlags,
+  options: InteractionSnapshotOptions,
+) => Promise<SnapshotState>;
+
+export type InteractionRouteInput = {
+  req: DaemonRequest;
+  sessionName: string;
+  logPath?: string;
+  sessionStore: SessionStore;
+  captureSnapshotForSession?: CaptureSnapshotForSession;
+  contextFromFlags: ContextFromFlags;
+  inspectFacts?: InspectDeviceRuntimeFacts;
+  bindDevice?: BindDeviceRuntime;
+  androidObservation?: AndroidObservationAdapter;
+};
+
+export type InteractionRouteExecutionInput = Omit<
+  InteractionRouteInput,
+  'captureSnapshotForSession'
+> & {
+  captureSnapshotForSession: CaptureSnapshotForSession;
+};
+
+export type FindRouteInput = {
+  req: DaemonRequest;
+  sessionName: string;
+  logPath: string;
+  sessionStore: SessionStore;
+  invoke: DaemonInvokeFn;
+  inspectFacts?: InspectDeviceRuntimeFacts;
+  bindDevice?: BindDeviceRuntime;
+};
+
+export type RefSnapshotFlagGuardResponse =
+  typeof import('../../ref-snapshot-flags.ts').refSnapshotFlagGuardResponse;
 
 export type InteractionSessionView = Readonly<{
   device: DeviceInfo;

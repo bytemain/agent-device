@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   checkDaemonModularityRatchets,
+  checkRetiredInteractionPaths,
   checkRetiredSessionLifecyclePaths,
   checkRetiredSessionObservabilityPaths,
   DAEMON_MODULARITY_BASELINE,
@@ -318,8 +319,16 @@ test('interaction rejects handler crossings and deep imports around its facade',
         "import { refSnapshotFlagGuardResponse } from '../interaction/internal/interaction-flags.ts';\nexport function handleInteractionCommands() {}",
       ],
       [
+        'src/daemon/handlers/find.ts',
+        "import { preferOnscreenMatches } from '../interaction/internal/find-match-ranking.ts';\nexport function handleFindCommands() {}",
+      ],
+      [
         'src/daemon/interaction/internal/interaction-runtime.ts',
         "import { handleInteractionCommands } from '../../handlers/interaction.ts';\nexport function createInteractionRuntime() {}",
+      ],
+      [
+        'src/daemon/interaction/internal/find.ts',
+        "import { handleFindCommands } from '../../handlers/find.ts';\nexport function find() {}",
       ],
       [
         'src/daemon/generic-settle.ts',
@@ -338,6 +347,10 @@ test('interaction rejects handler crossings and deep imports around its facade',
         'export function refSnapshotFlagGuardResponse() {}',
       ],
       [
+        'src/daemon/interaction/internal/find-match-ranking.ts',
+        'export function preferOnscreenMatches() {}',
+      ],
+      [
         'src/daemon/interaction/internal/interaction-read.ts',
         'export function readTextForNode() {}',
       ],
@@ -348,7 +361,7 @@ test('interaction rejects handler crossings and deep imports around its facade',
     [...baselineEdges(), ...edges],
     baselineTypeCycleMembers(),
   );
-  assert.equal(violations.length, 5);
+  assert.equal(violations.length, 7);
   assert.ok(
     violations.some(({ message }) =>
       message.includes(
@@ -367,7 +380,7 @@ test('interaction rejects handler crossings and deep imports around its facade',
     violations.filter(({ message }) =>
       message.includes("must not import daemon-interaction's internal tree"),
     ).length,
-    4,
+    5,
   );
 });
 
@@ -486,6 +499,26 @@ test('session observability rejects restored handler paths', () => {
       file,
       message:
         `retired session observability path was restored: ${file}. ` +
+        'Keep the neutral seam at its daemon owner instead of rebuilding a handler grab-bag.',
+    })),
+  );
+});
+
+test('interaction rejects restored handler paths', () => {
+  const restoredPaths = [
+    'src/daemon/handlers/find.ts',
+    'src/daemon/handlers/interaction-touch-direct-ios-regressed.ts',
+    'src/daemon/handlers/interaction-common-regressed.ts',
+    'src/daemon/interaction/internal/find.ts',
+  ] as const;
+  const violations = checkRetiredInteractionPaths(restoredPaths);
+
+  assert.deepEqual(
+    violations.map(({ file, message }) => ({ file, message })),
+    restoredPaths.slice(0, 3).map((file) => ({
+      file,
+      message:
+        `retired interaction path was restored: ${file}. ` +
         'Keep the neutral seam at its daemon owner instead of rebuilding a handler grab-bag.',
     })),
   );

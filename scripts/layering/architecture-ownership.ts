@@ -49,6 +49,7 @@ const DAEMON_INTERACTION_FACADE = {
   exports: [
     'CaptureSnapshotForSession',
     'ContextFromFlags',
+    'FindRouteInput',
     'InteractionRouteInput',
     'RefSnapshotFlagGuardResponse',
     'assertRecordedFillParameterization',
@@ -56,6 +57,8 @@ const DAEMON_INTERACTION_FACADE = {
     'captureSnapshotForSession',
     'createInteractionRuntime',
     'finalizeTouchInteraction',
+    'handleFindCommands',
+    'handleInteractionCommands',
     'publishInteractionAmbiguityCandidates',
     'readSettleRequest',
     'readTextForNode',
@@ -64,6 +67,34 @@ const DAEMON_INTERACTION_FACADE = {
     'settleFlagGuardResponse',
   ],
 } as const;
+
+export const INTERACTION_RETIRED_HANDLER_PATHS = [
+  'src/daemon/handlers/find.ts',
+  'src/daemon/handlers/find-match-ranking.ts',
+  'src/daemon/handlers/find-match-resolution.ts',
+  'src/daemon/handlers/find-target-capture.ts',
+  'src/daemon/handlers/interaction.ts',
+  'src/daemon/handlers/interaction-android-escape.ts',
+  'src/daemon/handlers/interaction-gesture.ts',
+  'src/daemon/handlers/interaction-gesture-response.ts',
+  'src/daemon/handlers/interaction-ios-tap-outcome.ts',
+  'src/daemon/handlers/interaction-targeting.ts',
+  'src/daemon/handlers/interaction-touch.ts',
+  'src/daemon/handlers/interaction-touch-android-freshness.ts',
+  'src/daemon/handlers/interaction-touch-android-readiness.ts',
+  'src/daemon/handlers/interaction-touch-direct-ios-eligibility.ts',
+  'src/daemon/handlers/interaction-touch-direct-ios.ts',
+  'src/daemon/handlers/interaction-touch-fill.ts',
+  'src/daemon/handlers/interaction-touch-payload.ts',
+  'src/daemon/handlers/interaction-touch-policy.ts',
+  'src/daemon/handlers/interaction-touch-prepare.ts',
+  'src/daemon/handlers/interaction-touch-press-admission.ts',
+  'src/daemon/handlers/interaction-touch-press.ts',
+  'src/daemon/handlers/interaction-touch-reference-frame.ts',
+  'src/daemon/handlers/interaction-touch-response.ts',
+  'src/daemon/handlers/interaction-touch-runtime.ts',
+  'src/daemon/handlers/interaction-touch-targets.ts',
+] as const;
 
 export const SESSION_OBSERVABILITY_RETIRED_HANDLER_PATHS = [
   'src/daemon/handlers/session-observability.ts',
