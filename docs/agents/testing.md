@@ -8,7 +8,7 @@ ownership lives in `scripts/check-affected/` and `scripts/gate/`.
 Three tiers:
 
 1. While editing: a focused test or `pnpm check:quick`.
-2. Before pushing: `pnpm check:affected --run`. It derives the relevant local gates and lists the
+2. Before pushing: `pnpm check:affected --run`. It derives the relevant local gates and lists
    checks that CI or a native toolchain owns.
 3. For a broad refactor, or when the full deterministic gate is requested: `pnpm check`.
 
@@ -27,14 +27,14 @@ CI result.
 
 Two selection traps recur:
 
-- A response that emits `platform` or `appleOs` needs provider integration and coverage evidence.
-  Unit tests do not run the provider project, which is what catches internal `apple` leaking onto
-  the wire.
+- A response emitting `platform` or `appleOs` needs provider integration and coverage evidence;
+  unit tests skip the provider project, the layer that catches internal `apple` leaking onto the
+  wire.
 - A workspace package manifest or TypeScript config can rewire all consumers, so the affected
   selector fails open to the full gate set on purpose.
 
 Docs-only changes with no behavior impact need no runtime tests. Structural guidance gates still
-need a planted violation that shows their failure direction.
+need a planted violation showing their failure direction.
 
 ## Platform and live-device policy
 
@@ -71,10 +71,10 @@ barrel on purpose: one barrel made every test evaluate every helper's transitive
 `DeviceInfo`, session, snapshot, store, runtime-fact, and mocked-binary values belong in a sibling
 fixture module, not in repeated test literals.
 
-Use `mkdtempForTest` or `mkdtempForTestSync`. Global setup redirects `TMPDIR` for the whole run and
-removes it after every worker exits — do not add per-test cleanup for those directories. An
-interrupted run may leave a directory behind; the next run prunes it once the owner process and
-every process using its `TMPDIR` are gone.
+Use `mkdtempForTest` or `mkdtempForTestSync`. Global setup redirects `TMPDIR` for the run and
+removes it after every worker exits — skip per-test cleanup. An interrupted run may leave a
+directory behind; the next run prunes it once its owner and every process using its `TMPDIR` are
+gone.
 
 Mock the seam the subject consumes. A daemon handler that binds a runtime gets fake runtime facts
 and facets, not a mock of generic dispatch. Generic dispatch mocks are migration debt — do not add
@@ -91,11 +91,11 @@ A regression test must be seen failing without the production change: revert the
 the smallest owning test, record the failing count, restore. Apply the same proof to test relocation
 and structural gates — plant a type error or violation and watch the intended gate find and name it.
 
-A callback-based canary must observe the subject's semantic success, not just lifecycle completion.
-Example: React Native Gesture Handler's
+A callback-based canary must observe semantic success, not just lifecycle completion — e.g. React
+Native Gesture Handler's
 [`onFinalize`](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/callbacks-events/)
-also fires when recognition fails or is interrupted — use an activation-dependent callback, or
-assert the callback's success state before publishing a pass.
+also fires on failed or interrupted recognition. Use an activation-dependent callback, or assert
+success state before publishing a pass.
 
 A device replay counts as automatic regression coverage only when an automatic PR or scheduled lane
 selects and runs it. Name the owning lane and confirm the scenario ran on the exact PR head. A
@@ -105,8 +105,8 @@ For structured classifiers, pair the positive case with the closest negative. Wh
 can be identical with and without a typed reason, the negative test must prove the message alone
 cannot activate retry, fallback, or recovery.
 
-Test through public interfaces where practical. Never add production exports or test-only dependency
-injection just for a test; a missing seam must be a real product seam.
+Test through public interfaces where practical; never add production exports or test-only
+dependency injection — a missing seam needs a real product seam.
 
 ## Properties, fuzzing, and mutation
 
@@ -150,8 +150,8 @@ limitations (manual-only, opaque owners) belong in the gate declarations, not he
 
 ## Concurrency torture lane
 
-The harness uses a deterministic scheduler for modeled lock grants plus a separate real
-request-scope serialization guard. A seed reproduces the scheduler trace and terminal invariant:
+The harness uses a deterministic scheduler for modeled lock grants and a real request-scope
+serialization guard. A seed reproduces the scheduler trace and terminal invariant:
 
 ```sh
 pnpm test:concurrency-torture
@@ -159,16 +159,18 @@ TORTURE_SEED=1234 pnpm test:concurrency-torture
 ```
 
 Lock plans come from the production request-lock decisions — never hand-author a parallel plan. The
-modeled boundary is documented in the harness module, and every failure prints its exact replay
-command.
+modeled boundary is documented in the harness module; every failure prints its exact replay command.
 
 ## Real-subprocess-spawn tests
 
-`SUBPROCESS_STUB_TESTS` enumerates the few files that spawn a real subprocess per case. They ran
-serialized in their own Vitest project until #1823's kill criterion: now un-serialized in
-`unit-core`'s default forks pool, reverted if a timeout-shaped failure appears within 20 consecutive
-CI runs. Still excluded from the mutation lane either way. There is no unit-test retry layer — fix
-or remove flakes.
+`SUBPROCESS_STUB_TESTS` lists the few files that spawn a real subprocess per case. Since #1823 they
+run un-serialized in `unit-core`'s default forks pool, reverted if a timeout-shaped failure appears
+within 20 consecutive CI runs; still excluded from the mutation lane either way. There is no
+unit-test retry layer — fix or remove flakes.
+
+Benchmark output stamped by run or commit hash is not committed under `scripts/`; it is produced at
+run time or fetched from the evidence branch. Versioned inputs (fuzz corpus, Maestro fixtures,
+schemas, `contracts/fixtures/` tables) are unaffected.
 
 ## Speed rules
 
@@ -181,7 +183,7 @@ or remove flakes.
 - Test files over 1,000 lines may be no longer than at the merge-base with `origin/main`, and no
   new test file may cross that line. Split the family before adding tests; shrinking needs no
   gate edit.
-- Keep isolation enabled and the pool on forks — both alternatives were measured and did not help.
-  The useful optimization is importing the module under test, not a platform barrel.
+- Keep isolation enabled and the pool on forks — both were measured and did not help. The useful
+  optimization is importing the module under test, not a platform barrel.
 - Local Vitest runs use a four-worker cap. Override it when a run needs a different host share:
   `AGENT_DEVICE_VITEST_MAX_WORKERS=<n>` (clamped to host CPUs, ignored in CI).
