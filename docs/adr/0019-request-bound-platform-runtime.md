@@ -863,3 +863,48 @@ execution shapes and permanent structural policies.
 - **Rely only on performance thresholds for lazy loading:** rejected. Thresholds catch regressions
   late and can pass while unrelated implementation graphs load; the import/evaluation shape is also
   contract-tested.
+
+## End state (proposed 2026-09-02, maintainer decision pending)
+
+The targets below are proposed defaults, not an accepted commitment. No tracking issue or Status
+line authorizes work against them yet; they exist to give the next migration wave a numeric
+baseline and are open for revision or rejection.
+
+**Daemon top-level footprint.** `git ls-tree --name-only origin/main src/daemon/ | grep -E
+'\.ts$' | grep -vE '\.test\.ts$' | wc -l` measured 199 production files at `e624ef9d3f`. Proposed
+target: ≤ 60. `src/daemon/**` is a permanent zone under R65; the target is about what remains
+there, not about retiring the directory.
+
+**Entry-to-platform hop count.** A file-by-file trace from the daemon HTTP entry to the concrete
+platform call measured 38 hops for `press`/Android and 29 hops for `snapshot`/iOS. Proposed
+target: ≤ 14 hops each. `src/platform-runtime.ts` (the immutable registry construction) and each
+platform façade's `loadRuntime` pairing are declared boundaries under Decision §1 and §2, not
+pass-through layers — they stay in any hop count regardless of target. Everything else on the
+traced path is a pass-through candidate only insofar as R13's named-facet enumeration and the
+`kernel < contracts < host-kit < capture-kit < provision-kit < platform/provider/daemon` direction
+already allow collapsing it; a hop that exists only to satisfy that direction is not waste.
+
+**Zones still under `src/` that this ADR expects to leave, and their package status:**
+
+- `src/platform-runtime-*.ts` (~70 files: Android/Apple/screen-recording/perf/network/app-log/
+  app-state/toolchain/device-inventory hosts). Mixed ownership: Android's deployment, logs,
+  network, perf, readiness, recording, and shutdown domains already have package homes under
+  `packages/platform-android/src/`; Apple's equivalents live under `packages/platform-apple/src/`.
+  The root files that remain are either declared host-port adapters (e.g. `adb-host`, bound only
+  by its named root file per Decision §1) or mechanics whose wave has not landed yet — the two are
+  not distinguished by filename and need per-file classification before a target is set.
+- `src/recording`, `src/snapshot`, `src/snapshot-quality`, `src/screenshot-diff`. No package
+  owner yet: `packages/capture-kit/src/` currently holds only `ios-snapshot-engine`. These are the
+  capture domain the §1 amendment assigns to `@agent-device/capture-kit`.
+- `src/provider-device-runtime.ts`, `src/provider-device-runtimes.ts`,
+  `src/provider-limrun-runtime.ts`, `src/provider-webdriver.ts`. Mostly already thin: the bulk of
+  WebDriver and Limrun provider logic lives in `packages/provider-webdriver/src/` and
+  `packages/provider-limrun/src/`; these root files are the composition-time wiring, comparable in
+  role to `src/platform-runtime.ts` itself.
+- `src/core` (R13-governed consumer seams), `src/commands`, `src/cli`, `src/cli-schema`,
+  `src/mcp`, `src/client`, `src/sdk`, `src/ai-sdk`, `src/remote`, `src/request`, `src/metro`,
+  `src/backend*.ts`. Not migration targets: these are command-surface, protocol-projection, and
+  daemon-owned zones this ADR keeps in `src/` by design, not residue awaiting a package.
+
+Neither number has an owning issue, gate, or accepted budget yet. Treat both as inputs to a
+maintainer decision, not as a ratchet.
