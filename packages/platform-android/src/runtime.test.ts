@@ -7,62 +7,38 @@ import type {
 } from '@agent-device/contracts/platform-runtime-operations';
 import type { DeviceInfo } from '@agent-device/kernel/device';
 import { createAndroidPlatformRuntime } from './runtime.ts';
+import {
+  ANDROID_EMULATOR,
+  UNKNOWN_KIND_DEVICE,
+  androidNavigationHost,
+  androidRuntimeHost,
+  bindOrdinary,
+  emptyAppInventory,
+} from './runtime.fixtures.ts';
 
-const device: DeviceInfo = {
-  platform: 'android',
-  id: 'emulator-5554',
-  name: 'Android',
-  kind: 'emulator',
-  target: 'mobile',
-  booted: true,
-};
 const appStateUnavailable = {
   available: false,
   reason: 'unsupported-device-kind',
   hint: 'Android appstate is supported only for Android emulators and devices.',
 } as const;
-const unknownKindDevice = { ...device, kind: 'unknown' } as unknown as DeviceInfo;
-const audioProbeHost: PlatformRuntimeHost['audioProbe'] = {
-  hostCapture: {
-    info: {
-      source: 'system-audio',
-      backend: 'fixture',
-      sourceCount: 0,
-      notes: () => [],
-    },
-    start: async () => {
-      throw new Error('Audio probe is outside this runtime fixture.');
-    },
-    inspectProcess: async () => 'missing',
-    terminateProcess: async () => 'already-missing',
-  },
-  web: { resolve: async () => undefined },
-  ownedProcesses: { replace: () => {}, clear: () => {} },
-};
 
 test.each([
-  ['emulator', device],
-  ['device', { ...device, kind: 'device' as const }],
-  ['unknown', unknownKindDevice],
+  ['emulator', ANDROID_EMULATOR],
+  ['device', { ...ANDROID_EMULATOR, kind: 'device' as const }],
+  ['unknown', UNKNOWN_KIND_DEVICE],
 ])('classifies the Android %s runtime denominator', async (_name, runtimeDevice) => {
   const listApps = vi.fn(async () => [{ id: 'com.example.app', name: 'Example' }]);
   const appState = vi.fn(async () => ({
     stdout: 'mCurrentFocus=Window{1 u0 com.example.app/.MainActivity}',
   }));
-  const host = {
-    androidTools: { probeClipboardShellSupport: async () => 'supported' as const },
+  const host = androidRuntimeHost({
     commands: {
       which: async () => 'tool',
       run: async () => ({ stdout: '1', stderr: '', exitCode: 0 }),
     },
     toolchains: { prepare: async () => {} },
     clock: { now: () => 1, sleep: async () => {} },
-    processTransports: { resolve: async () => ({ mode: 'local' as const }) },
-    appInventory: {
-      apple: { listApps: async () => [] },
-      android: { listApps },
-      harmonyos: { listApps: async () => [] },
-    },
+    appInventory: { ...emptyAppInventory, android: { listApps } },
     appState: {
       android: { run: appState },
       harmonyos: { run: async () => ({ stdout: '' }) },
@@ -76,36 +52,8 @@ test.each([
       },
       androidEmulator: { discover: async () => [], launch: () => 1, terminate: async () => {} },
     },
-    localInteractors: { resolve: async () => ({}) },
-    audioProbe: audioProbeHost,
-    screenRecording: {
-      android: {
-        resolve: async () => ({
-          mode: 'local' as const,
-          start: async () => {
-            throw new Error('unused');
-          },
-          signal: async () => true,
-          isRunning: async () => false,
-          exists: async () => false,
-          pull: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
-          remove: async () => true,
-          readManifest: async () => undefined,
-          writeManifest: async () => {},
-          removeManifest: async () => {},
-        }),
-      },
-    },
-  } as unknown as PlatformRuntimeHost;
-  const binding = await createAndroidPlatformRuntime(host).bind({
-    device: runtimeDevice,
-    intent: { kind: 'ordinary' },
-    scope: {
-      signal: new AbortController().signal,
-      diagnostics: { emit: () => {} },
-      progress: { report: () => {} },
-    },
   });
+  const binding = await bindOrdinary(createAndroidPlatformRuntime(host), runtimeDevice);
   const { facts } = binding;
   expect(facts.device.providerMode).toBe('local');
   expect(facts.operations.networkDump).toEqual({ available: true });
@@ -174,108 +122,31 @@ test.each([
 });
 
 test('rejects the non-discovered Android simulator cell for appstate', async () => {
-  const runtimeDevice = { ...device, kind: 'simulator' as const };
-  const host = {
-    androidTools: { probeClipboardShellSupport: async () => 'supported' as const },
-    processTransports: { resolve: async () => ({ mode: 'local' as const }) },
-    localInteractors: { resolve: async () => ({}) },
-    audioProbe: audioProbeHost,
+  const runtimeDevice = { ...ANDROID_EMULATOR, kind: 'simulator' as const };
+  const host = androidRuntimeHost({
     appState: {
       android: { run: async () => ({ stdout: '' }) },
       harmonyos: { run: async () => ({ stdout: '' }) },
     },
     deviceReadiness: { android: { ensureReady: async (selected: DeviceInfo) => selected } },
-    screenRecording: {
-      android: {
-        resolve: async () => ({
-          mode: 'local' as const,
-          start: async () => {
-            throw new Error('unused');
-          },
-          signal: async () => true,
-          isRunning: async () => false,
-          exists: async () => false,
-          pull: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
-          remove: async () => true,
-          readManifest: async () => undefined,
-          writeManifest: async () => {},
-          removeManifest: async () => {},
-        }),
-      },
-    },
-  } as unknown as PlatformRuntimeHost;
-  const binding = await createAndroidPlatformRuntime(host).bind({
-    device: runtimeDevice,
-    intent: { kind: 'ordinary' },
-    scope: {
-      signal: new AbortController().signal,
-      diagnostics: { emit: () => {} },
-      progress: { report: () => {} },
-    },
   });
+  const binding = await bindOrdinary(createAndroidPlatformRuntime(host), runtimeDevice);
 
   expect(binding.facts.operations.appState).toEqual(appStateUnavailable);
   expect(binding.operations.appState).toBeUndefined();
 });
 
-function androidNavigationHostFixture(
-  probeClipboardShellSupport: () => Promise<AndroidClipboardShellSupport> = async () => 'supported',
-) {
-  return {
-    androidTools: {
-      probeClipboardShellSupport,
-      runAdb: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
-    },
-    processTransports: { resolve: async () => ({ mode: 'local' as const }) },
-    appInventory: {
-      apple: { listApps: async () => [] },
-      android: { listApps: async () => [] },
-      harmonyos: { listApps: async () => [] },
-    },
-    appState: {
-      android: { run: async () => ({ stdout: '' }) },
-      harmonyos: { run: async () => ({ stdout: '' }) },
-    },
-    deviceReadiness: { android: { ensureReady: async (selected: DeviceInfo) => selected } },
-    localInteractors: { resolve: async () => ({}) },
-    audioProbe: audioProbeHost,
-    screenRecording: {
-      android: {
-        resolve: async () => ({
-          mode: 'local' as const,
-          start: async () => {
-            throw new Error('unused');
-          },
-          signal: async () => true,
-          isRunning: async () => false,
-          exists: async () => false,
-          pull: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
-          remove: async () => true,
-          readManifest: async () => undefined,
-          writeManifest: async () => {},
-          removeManifest: async () => {},
-        }),
-      },
-    },
-  } as unknown as PlatformRuntimeHost;
-}
-
 test.each([
-  ['emulator', device],
-  ['device', { ...device, kind: 'device' as const }],
-  ['unknown', unknownKindDevice],
+  ['emulator', ANDROID_EMULATOR],
+  ['device', { ...ANDROID_EMULATOR, kind: 'device' as const }],
+  ['unknown', UNKNOWN_KIND_DEVICE],
 ])(
   'classifies Android %s back/home/orientation/keyboard facts through the shared touch gate',
   async (_name, runtimeDevice) => {
-    const binding = await createAndroidPlatformRuntime(androidNavigationHostFixture()).bind({
-      device: runtimeDevice,
-      intent: { kind: 'ordinary' },
-      scope: {
-        signal: new AbortController().signal,
-        diagnostics: { emit: () => {} },
-        progress: { report: () => {} },
-      },
-    });
+    const binding = await bindOrdinary(
+      createAndroidPlatformRuntime(androidNavigationHost()),
+      runtimeDevice,
+    );
     const { facts } = binding;
 
     // back/home/orientation/keyboard status+dismiss+enter all ride the same adb-driven touch
@@ -303,16 +174,11 @@ test.each([
 );
 
 test('admits Android tv-remote only for a real TV target', async () => {
-  const tvDevice = { ...device, kind: 'emulator' as const, target: 'tv' as const };
-  const binding = await createAndroidPlatformRuntime(androidNavigationHostFixture()).bind({
-    device: tvDevice,
-    intent: { kind: 'ordinary' },
-    scope: {
-      signal: new AbortController().signal,
-      diagnostics: { emit: () => {} },
-      progress: { report: () => {} },
-    },
-  });
+  const tvDevice = { ...ANDROID_EMULATOR, kind: 'emulator' as const, target: 'tv' as const };
+  const binding = await bindOrdinary(
+    createAndroidPlatformRuntime(androidNavigationHost()),
+    tvDevice,
+  );
 
   expect(binding.facts.operations.tvRemote).toEqual({ available: true });
   expect(binding.operations.tvRemote).toBeTypeOf('function');
@@ -324,14 +190,10 @@ test('admits Android tv-remote only for a real TV target', async () => {
 // bucket's name for a device with no declared kind, which `DeviceKind` cannot express.)
 test('admits both clipboard halves and the app switcher on every real Android kind', async () => {
   for (const kind of ['emulator', 'device'] as const) {
-    const binding = await createAndroidPlatformRuntime(androidNavigationHostFixture()).bind({
-      device: { ...device, id: `android-${kind}`, kind },
-      intent: { kind: 'ordinary' },
-      scope: {
-        signal: new AbortController().signal,
-        diagnostics: { emit: () => {} },
-        progress: { report: () => {} },
-      },
+    const binding = await bindOrdinary(createAndroidPlatformRuntime(androidNavigationHost()), {
+      ...ANDROID_EMULATOR,
+      id: `android-${kind}`,
+      kind,
     });
     expect(binding.facts.operations.readClipboard).toEqual({ available: true });
     expect(binding.facts.operations.writeClipboard).toEqual({ available: true });
@@ -355,16 +217,15 @@ test('admits both clipboard halves and the app switcher on every real Android ki
 });
 
 test('the synthetic Android simulator cell refuses back/home/orientation/keyboard like every other touch operation', async () => {
-  const simulatorDevice = { ...device, id: 'android-simulator', kind: 'simulator' as const };
-  const binding = await createAndroidPlatformRuntime(androidNavigationHostFixture()).bind({
-    device: simulatorDevice,
-    intent: { kind: 'ordinary' },
-    scope: {
-      signal: new AbortController().signal,
-      diagnostics: { emit: () => {} },
-      progress: { report: () => {} },
-    },
-  });
+  const simulatorDevice = {
+    ...ANDROID_EMULATOR,
+    id: 'android-simulator',
+    kind: 'simulator' as const,
+  };
+  const binding = await bindOrdinary(
+    createAndroidPlatformRuntime(androidNavigationHost()),
+    simulatorDevice,
+  );
   const { facts } = binding;
 
   for (const operation of [
@@ -401,7 +262,7 @@ type LegacyLifecycleCell = Readonly<{
 test.each([
   [
     'emulator',
-    device,
+    ANDROID_EMULATOR,
     {
       openTarget: true,
       prepareAppleRunner: false,
@@ -412,7 +273,7 @@ test.each([
   ],
   [
     'device',
-    { ...device, kind: 'device' as const },
+    { ...ANDROID_EMULATOR, kind: 'device' as const },
     {
       openTarget: true,
       prepareAppleRunner: false,
@@ -423,7 +284,7 @@ test.each([
   ],
   [
     'synthetic simulator',
-    { ...device, id: 'android-simulator', kind: 'simulator' as const },
+    { ...ANDROID_EMULATOR, id: 'android-simulator', kind: 'simulator' as const },
     {
       openTarget: false,
       prepareAppleRunner: false,
@@ -435,44 +296,10 @@ test.each([
 ] satisfies ReadonlyArray<readonly [string, DeviceInfo, LegacyLifecycleCell]>)(
   'classifies the Android %s lifecycle denominator against the legacy dispatch cell',
   async (_name, runtimeDevice, legacy) => {
-    const host = {
-      androidTools: { probeClipboardShellSupport: async () => 'supported' as const },
-      processTransports: { resolve: async () => ({ mode: 'local' as const }) },
-      appInventory: {
-        apple: { listApps: async () => [] },
-        android: { listApps: async () => [] },
-        harmonyos: { listApps: async () => [] },
-      },
-      localInteractors: { resolve: async () => ({}) },
-      audioProbe: audioProbeHost,
-      screenRecording: {
-        android: {
-          resolve: async () => ({
-            mode: 'local' as const,
-            start: async () => {
-              throw new Error('unused');
-            },
-            signal: async () => true,
-            isRunning: async () => false,
-            exists: async () => false,
-            pull: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
-            remove: async () => true,
-            readManifest: async () => undefined,
-            writeManifest: async () => {},
-            removeManifest: async () => {},
-          }),
-        },
-      },
-    } as unknown as PlatformRuntimeHost;
-    const binding = await createAndroidPlatformRuntime(host).bind({
-      device: runtimeDevice,
-      intent: { kind: 'ordinary' },
-      scope: {
-        signal: new AbortController().signal,
-        diagnostics: { emit: () => {} },
-        progress: { report: () => {} },
-      },
-    });
+    const binding = await bindOrdinary(
+      createAndroidPlatformRuntime(androidRuntimeHost()),
+      runtimeDevice,
+    );
     const { facts } = binding;
     expect(facts.device.providerMode).toBe('local');
     expect(facts.operations.networkDump).toEqual({ available: true });
@@ -525,13 +352,13 @@ function expectLifecycleFacts(
 // synthesis and to target-authored drag but never to a plain one-contact fling or pan.
 test.each([
   // name, device, plan, multiTouch, drag, scroll
-  ['emulator', device, true, true, true, true],
-  ['physical device', { ...device, kind: 'device' as const }, true, true, true, true],
-  ['unknown kind', unknownKindDevice, true, true, true, true],
-  ['TV target', { ...device, target: 'tv' as const }, true, false, false, true],
+  ['emulator', ANDROID_EMULATOR, true, true, true, true],
+  ['physical device', { ...ANDROID_EMULATOR, kind: 'device' as const }, true, true, true, true],
+  ['unknown kind', UNKNOWN_KIND_DEVICE, true, true, true, true],
+  ['TV target', { ...ANDROID_EMULATOR, target: 'tv' as const }, true, false, false, true],
   [
     'synthetic simulator row',
-    { ...device, kind: 'simulator' as const },
+    { ...ANDROID_EMULATOR, kind: 'simulator' as const },
     false,
     false,
     false,
@@ -553,7 +380,7 @@ test.each([
 
 test('carries the retired Android TV hints verbatim', async () => {
   const facts = await createAndroidPlatformRuntime(gestureHost()).inspectFacts({
-    ...device,
+    ...ANDROID_EMULATOR,
     target: 'tv',
   });
   expect(facts.operations.performMultiTouchGesturePlan).toEqual({
@@ -569,37 +396,20 @@ test('carries the retired Android TV hints verbatim', async () => {
 
 test('binds only the Android gesture tiers the target admitted', async () => {
   const bind = async (runtimeDevice: DeviceInfo) =>
-    await createAndroidPlatformRuntime(gestureHost()).bind({
-      device: runtimeDevice,
-      intent: { kind: 'ordinary' },
-      scope: {
-        signal: new AbortController().signal,
-        diagnostics: { emit: () => {} },
-        progress: { report: () => {} },
-      },
-    });
-  const phone = await bind(device);
+    await bindOrdinary(createAndroidPlatformRuntime(gestureHost()), runtimeDevice);
+  const phone = await bind(ANDROID_EMULATOR);
   expect(phone.operations.performMultiTouchGesturePlan).toBeTypeOf('function');
   expect(phone.operations.scrollDirection).toBeTypeOf('function');
-  const tv = await bind({ ...device, target: 'tv' });
+  const tv = await bind({ ...ANDROID_EMULATOR, target: 'tv' });
   expect(tv.operations.performGesturePlan).toBeTypeOf('function');
   expect(tv.operations.performMultiTouchGesturePlan).toBeUndefined();
   expect(tv.operations.performTargetAuthoredDrag).toBeUndefined();
 });
 
 function gestureHost(): PlatformRuntimeHost {
-  return {
-    androidTools: { probeClipboardShellSupport: async () => 'supported' as const },
-    processTransports: { resolve: async () => ({ mode: 'local' as const }) },
-    appInventory: {
-      apple: { listApps: async () => [] },
-      android: { listApps: async () => [] },
-      harmonyos: { listApps: async () => [] },
-    },
-    localInteractors: { resolve: async () => ({}) },
-    audioProbe: audioProbeHost,
+  return androidRuntimeHost({
     screenRecording: { android: { resolve: async () => ({ mode: 'local' as const }) } },
-  } as unknown as PlatformRuntimeHost;
+  });
 }
 
 // R55 defect, found on a Pixel 9 Pro XL / Android 36 emulator: the retired bucket admitted both
@@ -607,17 +417,10 @@ function gestureHost(): PlatformRuntimeHost {
 // `clipboard read` then failed with `UNSUPPORTED_OPERATION` from the leaf. Admission now probes
 // the same condition the leaf checks, so a build with no clipboard shell command refuses up front.
 test('refuses both clipboard halves when the build reports no clipboard shell', async () => {
-  const binding = await createAndroidPlatformRuntime(
-    androidNavigationHostFixture(async () => 'unsupported'),
-  ).bind({
-    device: { ...device, id: 'android-no-clipboard-shell', kind: 'device' },
-    intent: { kind: 'ordinary' },
-    scope: {
-      signal: new AbortController().signal,
-      diagnostics: { emit: () => {} },
-      progress: { report: () => {} },
-    },
-  });
+  const binding = await bindOrdinary(
+    createAndroidPlatformRuntime(androidNavigationHost(async () => 'unsupported')),
+    { ...ANDROID_EMULATOR, id: 'android-no-clipboard-shell', kind: 'device' },
+  );
 
   for (const key of ['readClipboard', 'writeClipboard'] as const) {
     expect(binding.facts.operations[key]).toMatchObject({
@@ -635,8 +438,12 @@ test.each([['supported'], ['unsupported']] as const)(
   'caches a definitive %s verdict instead of re-probing per inspection',
   async (verdict) => {
     const probe = vi.fn(async () => verdict);
-    const runtime = createAndroidPlatformRuntime(androidNavigationHostFixture(probe));
-    const target = { ...device, id: `android-probe-cache-${verdict}`, kind: 'device' as const };
+    const runtime = createAndroidPlatformRuntime(androidNavigationHost(probe));
+    const target = {
+      ...ANDROID_EMULATOR,
+      id: `android-probe-cache-${verdict}`,
+      kind: 'device' as const,
+    };
 
     await runtime.inspectFacts(target);
     await runtime.inspectFacts(target);
@@ -650,17 +457,10 @@ test.each([['supported'], ['unsupported']] as const)(
 // `capabilities` advertised — and must not be remembered, or one transport blip decides the
 // question for the owner's whole life.
 test('a failed probe refuses rather than fabricating availability', async () => {
-  const binding = await createAndroidPlatformRuntime(
-    androidNavigationHostFixture(async () => 'probe-failed'),
-  ).bind({
-    device: { ...device, id: 'android-probe-failed', kind: 'device' },
-    intent: { kind: 'ordinary' },
-    scope: {
-      signal: new AbortController().signal,
-      diagnostics: { emit: () => {} },
-      progress: { report: () => {} },
-    },
-  });
+  const binding = await bindOrdinary(
+    createAndroidPlatformRuntime(androidNavigationHost(async () => 'probe-failed')),
+    { ...ANDROID_EMULATOR, id: 'android-probe-failed', kind: 'device' },
+  );
 
   for (const key of ['readClipboard', 'writeClipboard'] as const) {
     expect(binding.facts.operations[key]).toMatchObject({ available: false });
@@ -676,8 +476,8 @@ test('a failed probe is not cached, so the next inspection asks again', async ()
     .fn<() => Promise<AndroidClipboardShellSupport>>()
     .mockResolvedValueOnce('probe-failed')
     .mockResolvedValue('supported');
-  const runtime = createAndroidPlatformRuntime(androidNavigationHostFixture(probe));
-  const target = { ...device, id: 'android-probe-retry', kind: 'device' as const };
+  const runtime = createAndroidPlatformRuntime(androidNavigationHost(probe));
+  const target = { ...ANDROID_EMULATOR, id: 'android-probe-retry', kind: 'device' as const };
 
   const first = await runtime.inspectFacts(target);
   const second = await runtime.inspectFacts(target);
@@ -688,11 +488,11 @@ test('a failed probe is not cached, so the next inspection asks again', async ()
 });
 
 test('a host with no clipboard probe refuses rather than assuming support', async () => {
-  const host = androidNavigationHostFixture();
+  const host = androidNavigationHost();
   const withoutProbe = { ...host, androidTools: {} } as unknown as PlatformRuntimeHost;
 
   const facts = await createAndroidPlatformRuntime(withoutProbe).inspectFacts({
-    ...device,
+    ...ANDROID_EMULATOR,
     id: 'android-no-probe',
     kind: 'device',
   });
