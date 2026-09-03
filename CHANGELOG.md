@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added strict `wait absent <selector> [timeoutMs]` polling for zero selector matches. Incomplete,
+  sparse, truncated, scoped, depth-limited, and Android unreadable captures cannot prove absence;
+  deadline diagnostics retain typed capture evidence and stable first-match details (#2236).
 - Added the `harmonyos-instance` lease contract and CLI/runtime plumbing as a prerequisite for
   HarmonyOS proxy support; provider/daemon allocation remains gated until its end-to-end lifecycle
   is implemented and validated (#2266).
