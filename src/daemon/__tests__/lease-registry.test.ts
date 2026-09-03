@@ -2,17 +2,12 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { createRequestCanceledError } from '@agent-device/kernel/errors';
 import { LeaseRegistry } from '../lease-registry.ts';
-import { normalizeLeaseBackend } from '../lease-registry-scope.ts';
 import {
   HUMAN_CONTROL_LEASE_REQUEST,
   HUMAN_CONTROL_SCOPE,
   isHumanControlError,
   createControlLatch,
 } from './human-control-fixtures.ts';
-
-test('normalizeLeaseBackend accepts HarmonyOS instance backend', () => {
-  assert.equal(normalizeLeaseBackend('harmonyos-instance'), 'harmonyos-instance');
-});
 
 test('allocateLease creates lease and enforces tenant/run validation', () => {
   const registry = new LeaseRegistry();

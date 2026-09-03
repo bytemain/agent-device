@@ -48,7 +48,12 @@ import {
 import type { AgentDeviceClient } from '../agent-device-client.ts';
 
 test('HarmonyOS platform resolves to its proxy lease backend', () => {
-  assert.equal(resolveRequestedLeaseBackend({ platform: 'harmonyos' } as never), 'harmonyos-instance');
+  assert.equal(
+    resolveRequestedLeaseBackend(
+      forceConnectFlags({ stateDir: '/tmp/agent-device', remoteConfig: '/tmp/remote.json', platform: 'harmonyos' }),
+    ),
+    'harmonyos-instance',
+  );
 });
 
 afterEach(() => {
