@@ -162,14 +162,6 @@ Lock plans come from the production request-lock decisions — never hand-author
 modeled boundary is documented in the harness module, and every failure prints its exact replay
 command.
 
-## Real-subprocess-spawn tests
-
-`SUBPROCESS_STUB_TESTS` enumerates the few files that spawn a real subprocess per case. #1823's kill
-criterion was met, so the `subprocess-stub` project is gone: these files now run un-serialized in
-`unit-core`'s default forks pool. The list survives solely as mutation-lane exclusion
-(`SERIALIZED_TESTS`): a real per-case spawn is timeout noise under thousands of mutant reruns. There
-is no unit-test retry layer — fix or remove flakes.
-
 ## Speed rules
 
 - Unit tests do not wait production time. Prefer budget-derived cadence, assert the caller passes
