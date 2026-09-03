@@ -164,11 +164,11 @@ command.
 
 ## Real-subprocess-spawn tests
 
-`SUBPROCESS_STUB_TESTS` enumerates the few files that spawn a real subprocess per case. They ran
-serialized in their own Vitest project until #1823's kill criterion: now un-serialized in
-`unit-core`'s default forks pool, reverted if a timeout-shaped failure appears within 20 consecutive
-CI runs. Still excluded from the mutation lane either way. There is no unit-test retry layer — fix
-or remove flakes.
+`SUBPROCESS_STUB_TESTS` enumerates the few files that spawn a real subprocess per case. #1823's kill
+criterion was met, so the `subprocess-stub` project is gone: these files now run un-serialized in
+`unit-core`'s default forks pool. The list survives solely as mutation-lane exclusion
+(`SERIALIZED_TESTS`): a real per-case spawn is timeout noise under thousands of mutant reruns. There
+is no unit-test retry layer — fix or remove flakes.
 
 ## Speed rules
 
