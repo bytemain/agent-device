@@ -182,6 +182,7 @@ jobs:
         run: |
           set -euo pipefail
           pnpm --dir examples/test-app exec expo prebuild --platform android --no-install
+          echo "org.gradle.jvmargs=-Xmx4g" >> examples/test-app/android/gradle.properties
           (
             cd examples/test-app/android
             ./gradlew :app:assembleRelease
