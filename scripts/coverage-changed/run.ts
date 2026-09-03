@@ -77,13 +77,7 @@ export function run(argv: readonly string[], cwd?: string): number {
 
   const diff = runCmdSync(
     'git',
-    [
-      'diff',
-      '--unified=0',
-      '--no-color',
-      `--find-renames=${RENAME_SIMILARITY}`,
-      `${base}...HEAD`,
-    ],
+    ['diff', '--unified=0', '--no-color', `--find-renames=${RENAME_SIMILARITY}`, `${base}...HEAD`],
     { cwd: root, maxBuffer: GIT_DIFF_MAX_BUFFER_BYTES },
   ).stdout;
   const result = computeChangedCoverage({
