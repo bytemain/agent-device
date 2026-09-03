@@ -931,6 +931,7 @@ function buildProxyDeviceKey(device: DeviceInfo): string {
 function leaseBackendForDevice(device: DeviceInfo): LeaseBackend | undefined {
   if (isIosFamily(device)) return 'ios-instance';
   if (device.platform === 'android') return 'android-instance';
+  if (device.platform === 'harmonyos') return 'harmonyos-instance';
   return undefined;
 }
 
