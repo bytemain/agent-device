@@ -10,8 +10,8 @@ import type { BenchmarkResult } from './types.ts';
  * below are the durable, immutable ref the corpus is pinned to. Re-tag (a new suffix, a new
  * commit) if the corpus is ever re-measured — never move this tag.
  */
-export const EVIDENCE_TAG = 'refs/tags/evidence/ios-snapshot/71fb2483f';
-export const EVIDENCE_COMMIT = '2d4baf461aa8897d49c6d4683cd16d8f43588ae8';
+const EVIDENCE_TAG = 'refs/tags/evidence/ios-snapshot/71fb2483f';
+const EVIDENCE_COMMIT = '2d4baf461aa8897d49c6d4683cd16d8f43588ae8';
 export const DEFAULT_EVIDENCE_DIR = path.join(import.meta.dirname, 'evidence');
 export const EVIDENCE_FIXTURE_PATH = path.join(import.meta.dirname, 'evidence-fixture.v1.json');
 
@@ -112,7 +112,7 @@ function readEvidenceDirOption(argv: string[]): { dir: string; isDefault: boolea
   throw new Error('Usage: pnpm bench:ios-snapshot:evidence -- [--evidence-dir <dir>]');
 }
 
-export function missingPublishedEvidence(files: EvidenceFile[]): string[] {
+function missingPublishedEvidence(files: EvidenceFile[]): string[] {
   const present = new Set(files.map((entry) => entry.file));
   return Object.keys(PUBLISHED_EVIDENCE).filter((file) => !present.has(file));
 }
@@ -140,7 +140,7 @@ export function checkEvidenceCorpus(dir: string, files: EvidenceFile[], isDefaul
   }
 }
 
-export function runEvidenceReport(argv: string[]): void {
+function runEvidenceReport(argv: string[]): void {
   const { dir, isDefault } = readEvidenceDirOption(argv);
   const files = readEvidenceDir(dir);
   if (files.length === 0) {
