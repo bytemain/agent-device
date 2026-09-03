@@ -5,7 +5,7 @@ export { defaultHintForCode, normalizeError } from './errors.ts';
 import type { PlatformSelector } from './device.ts';
 
 export type SessionRuntimeHints = {
-  platform?: 'ios' | 'android';
+  platform?: 'ios' | 'android' | 'harmonyos';
   metroHost?: string;
   metroPort?: number;
   bundleUrl?: string;
@@ -44,7 +44,7 @@ export type LocalInstallSource = Extract<DaemonInstallSource, { kind: 'url' | 'p
 
 const DAEMON_LOCK_POLICIES = ['reject', 'strip'] as const;
 export type DaemonLockPolicy = (typeof DAEMON_LOCK_POLICIES)[number];
-const LEASE_BACKENDS = ['ios-simulator', 'ios-instance', 'android-instance'] as const;
+const LEASE_BACKENDS = ['ios-simulator', 'ios-instance', 'android-instance', 'harmonyos-instance'] as const;
 export type LeaseBackend = (typeof LEASE_BACKENDS)[number];
 const DAEMON_SERVER_MODES = ['socket', 'http', 'dual'] as const;
 export type DaemonServerMode = (typeof DAEMON_SERVER_MODES)[number];
