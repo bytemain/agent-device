@@ -25,16 +25,20 @@
   come. **Merge-ready**: required checks are green on the actual head and, for device-facing
   paths, the live evidence exists (docs-only and pure-tooling changes owe none). "Don't wait for
   CI" licenses the first claim, not the second — say which one you are claiming.
-- Gross diff budget: 1,000 lines by `git diff --stat origin/main`. The exception is a rename-only
-  move PR titled `refactor(move)`, proven by `git diff -M90% --stat origin/main` showing pure
-  rename/move with no material content diff.
+- Gross diff budget: 1,000 lines by `git diff --stat origin/main...HEAD` (three dots: merge base
+  to head, so commits `main` gained since your base never count). The exception is a rename-only
+  move PR titled `refactor(move)`, proven by `git diff -M90% --stat origin/main...HEAD` showing
+  pure rename/move with no material content diff.
 
 ## Validation lifecycle
 
 Focused red/green checks while developing, then review rounds, then final fixes — then one
-**successful** full `pnpm check:affected --run` on the exact commit you are about to push. A failed
-attempt is diagnostic, not a stop sign: fix the cause and rerun until it is clean, do not push
-through a failure. Push only after that clean run; exact-head CI is the authority from there.
+**successful** full `pnpm check:affected --run` on the exact commit that is pushed. Run it yourself
+before pushing, or let a serialized gate stage run it on the pushed head and append the exact-head
+result to the PR body; either way the body records that result before the PR is reported as
+published. A failed attempt is diagnostic, not a stop sign: fix the cause, push the fix, and rerun
+until it is clean. Never claim a run you did not see complete on that head; exact-head CI is the
+authority from there.
 
 ## Commits
 

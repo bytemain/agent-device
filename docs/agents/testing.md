@@ -8,8 +8,9 @@ ownership lives in `scripts/check-affected/` and `scripts/gate/`.
 Three tiers:
 
 1. While editing: a focused test or `pnpm check:quick`.
-2. Before pushing: `pnpm check:affected --run`. It derives the relevant local gates and lists
-   checks that CI or a native toolchain owns.
+2. On the exact pushed head (locally, or by a gate stage recording it on the PR):
+   `pnpm check:affected --run`. It derives the relevant local gates and lists checks CI or a
+   native toolchain owns.
 3. For a broad refactor, or when the full deterministic gate is requested: `pnpm check`.
 
 GitHub stays authoritative for provider integration, full coverage, native builds, device lanes, and
@@ -21,15 +22,13 @@ pnpm check:affected --json
 pnpm gate --help
 ```
 
-`check:affected --run` reports coverage obligations but never turns coverage instrumentation on. It
-runs one capped `vitest related` command. Run the dedicated coverage scripts only to diagnose a red
-CI result.
+`check:affected --run` reports coverage obligations without instrumenting; it runs one capped
+`vitest related` command. Use the coverage scripts only to diagnose a red CI result.
 
 Two selection traps recur:
 
 - A response emitting `platform` or `appleOs` needs provider integration and coverage evidence;
-  unit tests skip the provider project, the layer that catches internal `apple` leaking onto the
-  wire.
+  only the provider project catches internal `apple` leaking onto the wire.
 - A workspace package manifest or TypeScript config can rewire all consumers, so the affected
   selector fails open to the full gate set on purpose.
 
@@ -116,10 +115,9 @@ budgets so property files stay inside the unit slow-test gate.
 
 Parser fuzz targets live in `scripts/fuzz/targets.ts`. Validation generators carry the invalid
 outcome they planted, so silent acceptance and wrong error codes are failures. Cases run in a
-worker process, so the two faults a case cannot report about itself — never returning, and killing
-the process it runs in — are reported as `hang` and `crash` against the exact input rather than
-taking the caller down with them. Promote a discovered case with the command the harness prints —
-never hand-copy an unshrunk input.
+worker process, so a case that never returns or kills its process is reported as `hang` or `crash`
+against the exact input. Promote a discovered case with the command the harness prints — never
+hand-copy an unshrunk input.
 
 Mutation is report-only and limited to the registry in `scripts/mutation/modules.ts`. It measures
 whether tests distinguish changed decision logic. Do not infer redundancy from line coverage alone.
@@ -133,10 +131,9 @@ pnpm depgraph affected packages/host-kit/src/command.ts
 pnpm depgraph affected src/daemon/ref-frame.ts --json --limit 25
 ```
 
-It reports value-edge dependents, affected gates, public commands whose handler chains reach the
-module, live scenario owners, and interaction-guarantee cells; type-only and dynamic edges are
-classified separately. Feed the plan into `pnpm check:affected --run` — do not keep a parallel gate
-list in prose.
+It reports value-edge dependents, affected gates, reaching public commands, live scenario owners,
+and interaction-guarantee cells; type-only and dynamic edges are classified separately. Feed the
+plan into `pnpm check:affected --run` — do not keep a parallel gate list in prose.
 
 ## Gate ownership
 
@@ -163,13 +160,14 @@ modeled boundary is documented in the harness module; every failure prints its e
 
 ## Real-subprocess-spawn tests
 
-`SUBPROCESS_STUB_TESTS` lists the few files that spawn a real subprocess per case. Since #1823 they
-run un-serialized in `unit-core`'s default forks pool, reverted if a timeout-shaped failure appears
-within 20 consecutive CI runs; still excluded from the mutation lane either way. There is no
-unit-test retry layer — fix or remove flakes.
+`SUBPROCESS_STUB_TESTS` in `vitest.config.ts` lists the few files that spawn a real subprocess per
+case. No `subprocess-stub` project exists: since #1823 they run un-serialized in `unit-core`'s
+default forks pool, reverted if a timeout-shaped failure appears within 20 consecutive CI runs.
+Only `fuzz-worker` is serialized (`fileParallelism: false`, `maxWorkers: 1`). Both lists stay out
+of the mutation lane (`SERIALIZED_TESTS`). No unit-test retry layer exists — fix or remove flakes.
 
-Benchmark output stamped by run or commit hash is not committed under `scripts/`; it is produced at
-run time or fetched from the evidence branch. Versioned inputs (fuzz corpus, Maestro fixtures,
+Run- or commit-stamped benchmark output is never committed under `scripts/`: produce it at run
+time or fetch it from the evidence branch. Versioned inputs (fuzz corpus, Maestro fixtures,
 schemas, `contracts/fixtures/` tables) are unaffected.
 
 ## Speed rules
