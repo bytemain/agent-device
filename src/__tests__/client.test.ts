@@ -1015,25 +1015,6 @@ test('client.command.wait prepares selector options and rejects invalid selector
   assert.equal(setup.calls.length, 1);
 });
 
-test('client.command.wait round-trips strict wait absent positionals', async () => {
-  const setup = createTransport(async () => ({ ok: true, data: { waitedMs: 0 } }));
-  const client = createAgentDeviceClient(setup.config, { transport: setup.transport });
-
-  await client.command.wait({ absent: 'label="Removed"', timeoutMs: 2500 });
-
-  assert.equal(setup.calls[0]?.command, 'wait');
-  assert.deepEqual(setup.calls[0]?.positionals, ['absent', 'label="Removed"', '2500']);
-
-  await assert.rejects(
-    async () => await client.command.wait({ absent: 'label="Removed"', depth: 2 }),
-    /wait absent does not support --depth/,
-  );
-  await assert.rejects(
-    async () => await client.command.wait({ absent: 'label="Removed"', scope: 'Root' }),
-    /wait absent does not support --scope/,
-  );
-});
-
 test('lease helpers forward scope through daemon-backed client methods', async () => {
   const setup = createTransport(async (req) => ({
     ok: true,

@@ -411,7 +411,11 @@ export const HUB_BUDGETS: Readonly<Record<string, number>> = Object.freeze({
   // #2148 moves output-only CLI dependencies behind call-time imports and reduces the entry
   // closure by two modules.
   // #2146 splits one eagerly reached URL utility into its client and Metro owners.
-  'src/cli.ts': 380,
+  // #2236 adds the typed pre-admission --scope/--depth refusal for `wait absent` to the existing
+  // wait command reader. That deliberately keeps the shared absence option contract and error
+  // modules on the CLI path; the measured two-module growth is the contract being loaded, not
+  // implementation or platform machinery being pulled in eagerly.
+  'src/cli.ts': 382,
   'src/platform-runtime.ts': 47,
   'src/core/command-descriptor/registry.ts': 72,
   'src/core/command-descriptor/platform-execution-entry.ts': 3,
