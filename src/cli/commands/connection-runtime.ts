@@ -734,7 +734,11 @@ function isRuntimeCompatibleWithPlatform(
   runtime: SessionRuntimeHints,
   platform: CliFlags['platform'],
 ): boolean {
-  if (!runtime.platform || !platform) {
+  if (
+    !runtime.platform ||
+    !platform ||
+    (platform !== 'ios' && platform !== 'android' && platform !== 'harmonyos')
+  ) {
     return true;
   }
   return runtime.platform === platform;
