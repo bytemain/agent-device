@@ -1,7 +1,7 @@
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import type { DeviceInfo } from '@agent-device/kernel/device';
-import type { RawSnapshotNode } from '@agent-device/kernel/snapshot';
+import { button, node, text } from './alert-fixtures.ts';
 
 const runAndroidAdb = vi.fn(async (_device: DeviceInfo, _args: string[]) => ({
   exitCode: 0,
@@ -77,38 +77,3 @@ test('a fallback Back dismissal (no matching button) carries no coordinates', as
   assert.equal(result.kind === 'alertHandled' ? result.button : undefined, 'Back');
   assert.deepEqual(runAndroidAdb.mock.calls[0]?.[1], ['shell', 'input', 'keyevent', '4']);
 });
-
-function node(
-  index: number,
-  type: string,
-  overrides: Partial<RawSnapshotNode> = {},
-): RawSnapshotNode {
-  return {
-    index,
-    parentIndex: index === 0 ? undefined : 0,
-    type,
-    bundleId: 'com.example.app',
-    ...overrides,
-  };
-}
-
-function text(index: number, label: string, identifier: string, parentIndex = 0): RawSnapshotNode {
-  return node(index, 'android.widget.TextView', { label, identifier, parentIndex });
-}
-
-function button(
-  index: number,
-  label: string,
-  identifier: string,
-  origin: { x: number; y: number },
-  parentIndex = 0,
-): RawSnapshotNode {
-  return node(index, 'android.widget.Button', {
-    label,
-    identifier,
-    bundleId: 'com.example.app',
-    parentIndex,
-    rect: { ...origin, width: 128, height: 52 },
-    hittable: true,
-  });
-}

@@ -185,11 +185,7 @@ export function createLiveDeviceHarness<
     }
   }
 
-  /**
-   * Best-effort evidence for a `wait` timeout: the daemon's own surface dump caps at a handful of
-   * labels, so a screenshot is the only artifact that shows the whole screen the wait gave up on.
-   * A failed capture must not mask the original wait failure, so this never throws.
-   */
+  /** Best-effort: never throws, returns undefined on a failed capture. */
   async function captureWaitTimeoutScreenshot(context: Context): Promise<string | undefined> {
     const screenshotPath = path.join(
       context.artifactDir,
