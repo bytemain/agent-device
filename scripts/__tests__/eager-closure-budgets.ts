@@ -236,6 +236,8 @@ export const FACADE_BUDGETS: Readonly<Record<string, number>> = Object.freeze({
   'packages/contracts/src/is-predicate.ts': 1,
   'packages/contracts/src/keyboard.ts': 1,
   'packages/contracts/src/logs-runtime-plan.ts': 5,
+  // The allocator port is types only, so its entry evaluates nothing but itself.
+  'packages/contracts/src/managed-device-allocation.ts': 1,
   'packages/contracts/src/managed-web-backend.ts': 1,
   'packages/contracts/src/navigation.ts': 1,
   'packages/contracts/src/network-runtime-plan.ts': 5,
@@ -412,7 +414,9 @@ export const HUB_BUDGETS: Readonly<Record<string, number>> = Object.freeze({
   // closure by two modules.
   // #2146 splits one eagerly reached URL utility into its client and Metro owners.
   'src/cli.ts': 380,
-  'src/platform-runtime.ts': 47,
+  // 47 -> 48: the composed gateway now composes the managed local owner wrapper, whose own value
+  // imports (the owner contract and kernel errors) were already in this closure.
+  'src/platform-runtime.ts': 48,
   'src/core/command-descriptor/registry.ts': 72,
   'src/core/command-descriptor/platform-execution-entry.ts': 3,
   'src/core/interactors/register-builtins.ts': 6,
