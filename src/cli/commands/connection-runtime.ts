@@ -689,6 +689,7 @@ export function resolveRequestedLeaseBackend(flags: CliFlags): LeaseBackend | un
   if (flags.leaseBackend) return flags.leaseBackend;
   if (flags.platform === 'android') return 'android-instance';
   if (flags.platform === 'ios') return 'ios-instance';
+  if (flags.platform === 'harmonyos') return 'harmonyos-instance';
   return undefined;
 }
 
@@ -697,7 +698,7 @@ function requireRequestedLeaseBackend(flags: CliFlags, command: string): LeaseBa
   if (leaseBackend) return leaseBackend;
   throw new AppError(
     'INVALID_ARGS',
-    `${command} requires --platform ios|android or --lease-backend when the remote connection has not resolved a lease yet.`,
+    `${command} requires --platform ios|android|harmonyos or --lease-backend when the remote connection has not resolved a lease yet.`,
   );
 }
 
