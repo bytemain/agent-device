@@ -215,7 +215,7 @@ function resolveSessionRuntimeHints(
   if (runtime.platform && device && !deviceRuntimePlatform) {
     throw new AppError(
       'INVALID_ARGS',
-      `Session runtime hints are only supported on iOS and Android sessions, but session "${sessionName}" is bound to ${boundPlatform}.`,
+      `Session runtime hints are only supported on iOS, Android, and HarmonyOS sessions, but session "${sessionName}" is bound to ${boundPlatform}.`,
     );
   }
   if (runtime.platform && deviceRuntimePlatform && runtime.platform !== deviceRuntimePlatform) {
