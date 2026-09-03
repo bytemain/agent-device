@@ -44,6 +44,9 @@
   are unchanged at schema v2. Two notes for mixed installations: a daemon older than this release
   reads a v3 file as an unreadable claim record and fails closed rather than clearing it, and
   `devices` reports no `claimedBy` for such a device until the managed-inventory filter lands.
+- Added the `harmonyos-instance` remote lease backend so HarmonyOS proxy devices can participate in
+  the same explicit allocation, heartbeat, and close lifecycle as other remote instances (#2266).
+
 - Fixed: `settings airplane on|off` now takes an Android device offline. It is applied through
   the connectivity service (`cmd connectivity airplane-mode`), which drives the radios, instead of
   writing `airplane_mode_on` and broadcasting `ACTION_AIRPLANE_MODE_CHANGED` — a broadcast Android
