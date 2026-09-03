@@ -10,6 +10,7 @@ export type WaitCommandTarget =
       text?: never;
       ref?: never;
       selector?: never;
+      absent?: never;
       stable?: never;
       quietMs?: never;
       timeoutMs?: never;
@@ -19,6 +20,7 @@ export type WaitCommandTarget =
       durationMs?: never;
       ref?: never;
       selector?: never;
+      absent?: never;
       stable?: never;
       quietMs?: never;
       timeoutMs?: number;
@@ -28,6 +30,7 @@ export type WaitCommandTarget =
       durationMs?: never;
       text?: never;
       selector?: never;
+      absent?: never;
       stable?: never;
       quietMs?: never;
       timeoutMs?: number;
@@ -37,6 +40,17 @@ export type WaitCommandTarget =
       durationMs?: never;
       text?: never;
       ref?: never;
+      absent?: never;
+      stable?: never;
+      quietMs?: never;
+      timeoutMs?: number;
+    })
+  | (SelectorSnapshotCommandOptions & {
+      absent: string;
+      durationMs?: never;
+      text?: never;
+      ref?: never;
+      selector?: never;
       stable?: never;
       quietMs?: never;
       timeoutMs?: number;
@@ -47,6 +61,7 @@ export type WaitCommandTarget =
       text?: never;
       ref?: never;
       selector?: never;
+      absent?: never;
       quietMs?: number;
       timeoutMs?: number;
     });

@@ -75,12 +75,16 @@ function harness(options: {
   return { findSelector, captureSnapshot, inspectFacts, bindDevice };
 }
 
-async function run(session: SessionState, runtime: ReturnType<typeof harness>) {
+async function run(
+  session: SessionState,
+  runtime: ReturnType<typeof harness>,
+  positionals: string[] = ['id=runner-only', '200'],
+) {
   const sessionStore = makeSessionStore('wait-conditional-selector-');
   sessionStore.set(session.name, session);
   const req = {
     command: 'wait',
-    positionals: ['id=runner-only', '200'],
+    positionals,
     token: 'token',
     session: session.name,
     flags: {},
@@ -164,4 +168,18 @@ test('recording and no-app waits retain capture-owned evidence semantics', async
     expect(runtime.findSelector).not.toHaveBeenCalled();
     expect(runtime.captureSnapshot).toHaveBeenCalled();
   }
+});
+
+test('strict wait absent skips the positive-only native selector fast path', async () => {
+  const runtime = harness({ found: true, nodes: [] });
+  const response = await run(makeIosAppSession('wait-conditional-selector'), runtime, [
+    'absent',
+    'id=runner-only',
+    '200',
+  ]);
+
+  expect(response).toMatchObject({ ok: true, data: { waitedMs: expect.any(Number) } });
+  if (response.ok) expect(response.data).not.toHaveProperty('kind');
+  expect(runtime.findSelector).not.toHaveBeenCalled();
+  expect(runtime.captureSnapshot).toHaveBeenCalled();
 });

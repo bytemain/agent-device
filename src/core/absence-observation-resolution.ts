@@ -2,7 +2,7 @@ import type { Platform, PublicPlatform } from '@agent-device/kernel/device';
 import type { SnapshotState } from '@agent-device/kernel/snapshot';
 import { resolveSelectorPipeline } from './selector-pipeline.ts';
 import { SELECTOR_PIPELINE_POLICIES } from './selector-pipeline-policy.ts';
-import { classifyAbsenceObservation } from './absence-observation.ts';
+import { classifyAbsenceObservation, type AbsenceObservation } from './absence-observation.ts';
 import { absenceObservationError } from './absence-observation-errors.ts';
 
 export type AbsenceObservationResult = {
@@ -12,11 +12,16 @@ export type AbsenceObservationResult = {
   matches: 0;
 };
 
-export async function resolveAbsenceObservation(
+export type ResolvedAbsenceObservation = {
+  selector: string;
+  observation: AbsenceObservation;
+};
+
+export async function resolveAbsenceObservationState(
   snapshot: SnapshotState,
   selectorExpression: string,
   platform: Platform | PublicPlatform,
-): Promise<AbsenceObservationResult> {
+): Promise<ResolvedAbsenceObservation> {
   const matched = await resolveSelectorPipeline(
     SELECTOR_PIPELINE_POLICIES.readAny,
     snapshot.nodes,
@@ -29,14 +34,24 @@ export async function resolveAbsenceObservation(
       : matched.kind === 'occluded'
         ? [matched.node]
         : [];
-  const observation = classifyAbsenceObservation(snapshot, matches);
-  if (observation.kind !== 'absent') {
-    throw absenceObservationError(
+  return {
+    selector:
       matched.kind === 'target' || matched.kind === 'ambiguous'
         ? matched.selector
         : selectorExpression,
-      observation,
-    );
+    observation: classifyAbsenceObservation(snapshot, matches),
+  };
+}
+
+export async function resolveAbsenceObservation(
+  snapshot: SnapshotState,
+  selectorExpression: string,
+  platform: Platform | PublicPlatform,
+): Promise<AbsenceObservationResult> {
+  const resolved = await resolveAbsenceObservationState(snapshot, selectorExpression, platform);
+  const observation = resolved.observation;
+  if (observation.kind !== 'absent') {
+    throw absenceObservationError(resolved.selector, observation);
   }
   return {
     predicate: 'absent',

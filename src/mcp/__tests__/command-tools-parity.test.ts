@@ -86,6 +86,30 @@ test('MCP open keeps device-selection evidence in structured content and JSON te
   assert.deepEqual(JSON.parse(result.content[0]?.text ?? '{}').selection, openResult.selection);
 });
 
+test('MCP advertises and round-trips the strict wait absent field', async () => {
+  let observedInput: Record<string, unknown> | undefined;
+  const executor = createCommandToolExecutor({
+    createClient: () => ({}) as AgentDeviceClient,
+    runCommand: async (_client, _name, input) => {
+      observedInput = input;
+      return { waitedMs: 0 };
+    },
+  });
+  const waitTool = listCommandTools().find((tool) => tool.name === 'wait');
+  assert.equal(
+    (waitTool?.inputSchema.properties?.absent as { type?: string } | undefined)?.type,
+    'string',
+  );
+
+  const result = await executor.execute('wait', {
+    absent: 'label="Removed"',
+    timeoutMs: 5000,
+  });
+
+  assert.equal(result.isError, false);
+  assert.deepEqual(observedInput, { absent: 'label="Removed"', timeoutMs: 5000 });
+});
+
 test('MCP fill projects target-bound unconfirmed verification through its advertised schema', async () => {
   const fillResult = {
     targetKind: 'point',

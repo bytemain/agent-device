@@ -12,6 +12,13 @@ test('usageForCommand documents open --launch-args', async () => {
   assert.match(help, /--launch-console artifacts\/launch-console\.log/);
 });
 
+test('usageForCommand documents strict wait absent', async () => {
+  const help = await usageForCommand('wait');
+  if (help === null) throw new Error('Expected wait help text');
+  assert.match(help, /absent <selector> \[timeoutMs\]/);
+  assert.match(help, /strictly absent|zero selector matches/);
+});
+
 test('usageForCommand documents screenshot web aliases and stabilization flags', async () => {
   const help = await usageForCommand('screenshot');
   if (help === null) throw new Error('Expected screenshot help text');

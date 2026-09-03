@@ -6,9 +6,12 @@ import {
   type AbsenceObservation,
 } from './absence-observation.ts';
 
-export function absenceCaptureOptionError(option: AbsenceCaptureOption): AppError {
-  return new AppError('INVALID_ARGS', absenceCaptureOptionMessage(option), {
-    command: 'is',
+export function absenceCaptureOptionError(
+  option: AbsenceCaptureOption,
+  command: 'is' | 'wait' = 'is',
+): AppError {
+  return new AppError('INVALID_ARGS', absenceCaptureOptionMessage(option, command), {
+    command,
     predicate: 'absent',
     rejectedOption: option,
   });
@@ -17,10 +20,11 @@ export function absenceCaptureOptionError(option: AbsenceCaptureOption): AppErro
 export function absenceObservationError(
   selector: string,
   observation: AbsenceObservation,
+  command: 'is' | 'wait' = 'is',
 ): AppError {
   const firstMatch = 'firstMatch' in observation ? observation.firstMatch : undefined;
   const details = {
-    command: 'is',
+    command,
     reason: INTERACTION_ERROR_REASONS.predicateFailed,
     predicate: 'absent',
     selector,
@@ -34,7 +38,7 @@ export function absenceObservationError(
     const multiple = observation.matches > 1;
     return new AppError(
       'COMMAND_FAILED',
-      `is absent failed for selector ${selector}: ${observation.matches} match${multiple ? 'es' : ''} found`,
+      `${command} absent failed for selector ${selector}: ${observation.matches} match${multiple ? 'es' : ''} found`,
       {
         ...details,
         ...(multiple ? { hint: 'Refine the selector to match no elements.' } : {}),
@@ -43,7 +47,7 @@ export function absenceObservationError(
   }
   return new AppError(
     'COMMAND_FAILED',
-    `is absent could not prove absence for selector ${selector}: ${
+    `${command} absent could not prove absence for selector ${selector}: ${
       observation.kind === 'sparse' ? 'capture was sparse' : 'capture was truncated'
     }`,
     {
@@ -53,22 +57,30 @@ export function absenceObservationError(
   );
 }
 
-export function absenceUnreadableError(selector: string, error: unknown): AppError {
+export function absenceUnreadableError(
+  selector: string,
+  error: unknown,
+  command: 'is' | 'wait' = 'is',
+): AppError {
   const cause = asAppError(error);
+  const captureErrorReason =
+    typeof cause.details?.reason === 'string'
+      ? cause.details.reason
+      : typeof cause.details?.androidSnapshotHelperFailureReason === 'string'
+        ? cause.details.androidSnapshotHelperFailureReason
+        : undefined;
   return new AppError(
     'COMMAND_FAILED',
-    `is absent could not prove absence for selector ${selector}: capture was unreadable`,
+    `${command} absent could not prove absence for selector ${selector}: capture was unreadable`,
     {
-      command: 'is',
+      command,
       reason: INTERACTION_ERROR_REASONS.predicateFailed,
       predicate: 'absent',
       selector,
       matches: 0,
       observation: 'unreadable',
       captureErrorCode: cause.code,
-      ...(typeof cause.details?.reason === 'string'
-        ? { captureErrorReason: cause.details.reason }
-        : {}),
+      ...(captureErrorReason ? { captureErrorReason } : {}),
       hint: 'Retry after the accessibility capture is readable.',
     },
     cause,

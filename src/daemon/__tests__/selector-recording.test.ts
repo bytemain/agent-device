@@ -24,6 +24,13 @@ function req(command: string, flags: DaemonRequest['flags'] = {}): DaemonRequest
   return { token: 't', session: 'default', command, positionals: [], flags };
 }
 
+function waitAbsentReq(): DaemonRequest {
+  return {
+    ...req('wait'),
+    positionals: ['absent', 'label="Removed"', '5000'],
+  };
+}
+
 /** A request as the replay runtime dispatches it: authored provenance stamped on `internal`. */
 function planStepReq(command: string, flags: DaemonRequest['flags'] = {}): DaemonRequest {
   return { ...req(command, flags), internal: { replayPlanStep: true } };
@@ -109,4 +116,18 @@ test('outside a repair-armed session, get/is/find/wait all record normally', () 
     'find',
     'wait',
   ]);
+});
+
+test('wait absent records positionals without target-v1 annotation', () => {
+  const store = makeStore();
+  store.set('default', makeIosSession('default'));
+
+  recordIfSession(store, 'default', waitAbsentReq(), { waitedMs: 0 });
+
+  expect(store.get('default')!.actions[0]).toMatchObject({
+    command: 'wait',
+    positionals: ['absent', 'label="Removed"', '5000'],
+    result: { waitedMs: 0 },
+  });
+  expect(store.get('default')!.actions[0]?.targetEvidence).toBeUndefined();
 });

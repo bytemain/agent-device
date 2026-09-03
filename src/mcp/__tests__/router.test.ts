@@ -81,6 +81,7 @@ test('server instructions are the compact workflow card, under the 2 KB client c
   // The card must name the start rule and the guide tool, and speak in tool properties.
   assert.match(MCP_SERVER_INSTRUCTIONS, /open \{app, foreground: true\}/);
   assert.match(MCP_SERVER_INSTRUCTIONS, /snapshot \{interactiveOnly: true\}/);
+  assert.match(MCP_SERVER_INSTRUCTIONS, /wait \{absent: selector\}/);
   assert.match(MCP_SERVER_INSTRUCTIONS, /Call help only/);
 });
 

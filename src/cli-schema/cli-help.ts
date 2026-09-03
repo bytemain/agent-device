@@ -49,12 +49,14 @@ const EXAMPLE_LINES = [
   'agent-device snapshot -i',
   'agent-device fill @e3 "test@example.com"',
   'agent-device replay ./session.ad',
+  `agent-device wait absent 'label="Loading..."' 3000`,
   'agent-device test ./suite --platform android',
 ] as const;
 
 const WAIT_FAILURE_CONTRACT = `Wait failure contract:
   Read the verdict from error.details.reason in --json, not the message text.
   wait_target_absent: a readable capture ran and found no match.
+  wait_target_present: wait absent timed out with matches; details include matches and firstMatch.
   wait_capture_stalled: no readable capture finished before the deadline -- retriable.
   wait_deadline_exceeded: a later capture used the remaining budget after an earlier readable one.
   wait_landmark_identity_mismatch: a replay destination guard found the selector but not the recorded identity.
@@ -82,7 +84,7 @@ Loop:
   3. Run press/fill/click/longpress <ref-or-selector> --settle for each mutating step.
   4. Treat a settled:true diff as the next observation. Do not add wait stable or another snapshot when the diff already shows the next target or expected result.
   5. If --settle prints not settled, follow its hint before the next ref-based action.
-  6. Verify named expectations with wait text/selector, get, is, find, or the settled diff. A bare screenshot/snapshot is not verification for a named expectation.
+  6. Verify named expectations with wait text/selector/absent, get, is, find, or the settled diff. A bare screenshot/snapshot is not verification for a named expectation.
   7. Close the session when the script ends.
 
 Command shapes:
@@ -93,6 +95,7 @@ Command shapes:
   agent-device press 'label="Follow"' --settle
   agent-device fill @e13 "qa@example.com" --settle
   agent-device wait text "Order placed" 3000
+  agent-device wait absent 'label="Loading..."' 3000
   agent-device close
   --relaunch forces fresh app state; a deep link/URL open does not need it. Labels with an apostrophe or quote (label="Don't leave") are shell-quoting hazards: prefer the @ref from the latest snapshot/settle output over quoting the literal label.
 
@@ -104,6 +107,7 @@ Targets:
 
 Recovery:
   Network/typeahead result missing: wait text "Expected result" or wait <selector>.
+  A target that should be gone/disappear: use wait absent <selector>; wait exists ... is rejected in favor of the plain selector wait.
   Keyboard visible over the next target: the on-screen keyboard usually does not block presses, so press the target directly instead of dismissing. If the press fails or reports no visible effect, scroll the target into view or use keyboard enter when submission is wanted.
   Sparse or recovered accessibility snapshot: use screenshot as visual truth, leave the bad screen if needed, then retry snapshot -i.
   Non-hittable success hint: verify with the settled diff or snapshot; retarget by a better ref/selector if the UI did not change.
@@ -164,7 +168,7 @@ Session ordering:
 
 Read-only and waits:
 ${WAIT_FAILURE_CONTRACT}
-  snapshot/get/is/find answer read-only questions; snapshot -i only when refs are needed. --settle confirms local UI quieted; for results that arrive later (network/debounce), follow with wait text "Expected result" or wait <selector> instead of polling.
+  Use wait text/selector for delayed results; use wait absent <selector> for strict disappearance.
   wait stable [quietMs] [timeoutMs] (defaults 500/10000) is the fallback for open/relaunch/navigation, or an intentionally-unsettled mutation -- not after a --settle whose diff already shows the change. Ambiguous find: add --first or --last.
 
 Navigation:
@@ -212,7 +216,7 @@ Reusable open-to-destination scripts:
     agent-device press 'id="continue"' --settle
     agent-device wait 'role="heading" label="Screen X"'
     agent-device session save-script
-  session save-script [path] [--force] publishes the sole recorded open through the destination guard, omits close, and leaves the session active. The guard is a selector wait on a labeled/id-bearing landmark: its identity is captured while armed and re-verified after the wait resolves at replay time, so a reshuffled screen with the same label elsewhere fails closed instead of false-passing. A duration wait, wait stable, wait @ref, or a selector wait on an unlabeled element is not a destination guard. A second successful open aborts publication; start a fresh session to author again.
+  session save-script [path] [--force] publishes the sole recorded open through the destination guard, omits close, and leaves the session active. The guard is a selector wait on a labeled/id-bearing landmark: its identity is captured while armed and re-verified after the wait resolves at replay time, so a reshuffled screen with the same label elsewhere fails closed instead of false-passing. A duration wait, wait stable, wait absent, wait @ref, or a selector wait on an unlabeled element is not a destination guard. A second successful open aborts publication; start a fresh session to author again.
   Unparameterized fill/type inputs are literal .ad script content. For a sensitive fill, arm recording first, keep the live value in an env var, and name its replay placeholder explicitly:
     export AD_VAR_PASSWORD='<secret>'
     agent-device fill 'id="password"' "$AD_VAR_PASSWORD" --record-as PASSWORD
@@ -917,7 +921,7 @@ First-slice loop:
   agent-device close --platform web
 
 Supported in agent-device web sessions:
-  open <url>, snapshot -i, get text/attrs, is visible/hidden/exists/absent/focused/text, find text/selector, click/press @ref or selector, hover @ref or selector, fill/type @ref or selector, wait text/selector, network dump, audio probe, screenshot, record start/stop with WebM output, close, and replay scripts made from those commands.
+  open <url>, snapshot -i, get text/attrs, is visible/hidden/exists/absent/focused/text, find text/selector, click/press @ref or selector, hover @ref or selector, fill/type @ref or selector, wait text/selector/absent, network dump, audio probe, screenshot, record start/stop with WebM output, close, and replay scripts made from those commands.
   hover moves the pointer without pressing so hover-gated UI (row toolbars, menus) appears; use --settle to read what it revealed, then act on the fresh refs. hover @ref hovers the browser element handle directly; pair --settle with a selector or coordinates (web refs carry no geometry, as with click @ref --settle). Web only: touch platforms have no hover state, so hover-gated flows there need a different entry point.
 
 Out of scope for agent-device web support:

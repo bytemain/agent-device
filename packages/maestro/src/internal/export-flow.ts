@@ -322,6 +322,12 @@ function convertWaitAction(
       ],
     };
   }
+  if (first === 'absent') {
+    return {
+      kind: 'unsupported',
+      message: 'strict wait absent requires zero selector matches and is unsupported by Maestro',
+    };
+  }
   if (first === 'text' && second) {
     return {
       kind: 'commands',

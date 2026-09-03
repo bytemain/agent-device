@@ -32,8 +32,23 @@ test('a condition word followed by a selector-shaped value is rejected, not read
   assertInvalid(['open', 'label="Open"', '25000'], 'label="Open"');
 });
 
-test('"exists" followed by a selector-shaped value is rejected and points at the selector form', () => {
-  assertInvalid(['exists', 'label="x"', '100'], "wait 'visible");
+test('"exists" followed by a selector-shaped value is rejected and points at the plain selector form', () => {
+  assertInvalid(['exists', 'label="x"', '100'], `wait 'label="x"'`);
+});
+
+test.each(['gone', 'disappears'])(
+  '%s routes to strict wait absent without becoming an alias',
+  (word) => {
+    assertInvalid([word, 'label="x"', '100'], `wait absent 'label="x"'`);
+  },
+);
+
+test('wait absent parses a selector and optional timeout', () => {
+  assert.deepEqual(parseWaitPositionals(['absent', 'label="Removed"', '2500']), {
+    kind: 'absent',
+    selectorExpression: 'label="Removed"',
+    timeoutMs: 2500,
+  });
 });
 
 test('unknown selector key is rejected with the supported-key list, not read as text', () => {

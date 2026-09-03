@@ -288,7 +288,10 @@ A recorded `id` never matches a node without that id.
 >   `is exists` (existence assertion with no unique winner; wait-like semantics without the
 >   guard-critical role), `is absent` (a strict one-capture absence observation has no resolved
 >   winner; it records as an ordinary observation and its `predicate_failed` failure is always an
->   action-failure, never an identity mismatch), every read-only `find` variant (fuzzy-locator resolution has no
+>   action-failure, never an identity mismatch), `wait absent` (strict zero-candidate polling has no
+>   resolved winner; its no-match success carries no `target-v1` or landmark annotation, and a
+>   `wait_target_present` deadline is an ordinary action-failure, never an identity mismatch or an
+>   ADR 0016 destination guard), every read-only `find` variant (fuzzy-locator resolution has no
 >   selector-chain identity token for the classifier, and publication already refuses mutating `find`
 >   as non-verifiable), and `wait text`/`wait stable`/duration waits/`wait @ref` (no element target, or
 >   a session-local ref that ADR 0016 already refuses to publish; `wait @ref` is rejected rather than

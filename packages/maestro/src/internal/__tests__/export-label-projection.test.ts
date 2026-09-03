@@ -40,6 +40,15 @@ test('keeps compound selectors that include label as hard export errors', () => 
   ).toThrow(AppError);
 });
 
+test('does not export strict wait absent as Maestro notVisible', () => {
+  expect(() =>
+    exportReplayActionsToMaestro([action('wait', ['absent', 'label="Removed"', '1000'])], {
+      resolveSelector: (expression) =>
+        projectSelectorExpression(expression, MAESTRO_SELECTOR_PROJECTION),
+    }),
+  ).toThrow(/wait absent.*unsupported|strict.*absence|notVisible/i);
+});
+
 function action(command: string, positionals: string[]): SessionAction {
   return { ts: 0, command, positionals, flags: {} };
 }

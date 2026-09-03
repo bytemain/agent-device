@@ -8,12 +8,16 @@ import {
   splitSelectorFromArgs,
 } from '@agent-device/selectors';
 
-export type WaitInvalidReason = 'unknown-selector-key' | 'selector-shaped-text';
+export type WaitInvalidReason =
+  | 'unknown-selector-key'
+  | 'selector-shaped-text'
+  | 'absent-selector-required';
 
 export type WaitParsed =
   | { kind: 'sleep'; durationMs: number }
   | { kind: 'ref'; rawRef: string; timeoutMs: number | null }
   | { kind: 'selector'; selectorExpression: string; timeoutMs: number | null }
+  | { kind: 'absent'; selectorExpression: string; timeoutMs: number | null }
   | { kind: 'text'; text: string; timeoutMs: number | null }
   | { kind: 'stable'; quietMs: number | null; timeoutMs: number | null }
   | { kind: 'invalid'; reason: WaitInvalidReason; message: string };
@@ -31,6 +35,7 @@ export function parseWaitPositionals(args: string[]): WaitParsed | null {
   const timeoutMs = parseTimeout(args.at(-1));
   if (firstArg === 'text') return parseTextKeyword(args, timeoutMs);
   if (firstArg === 'stable') return parseStableKeyword(args);
+  if (firstArg === 'absent') return parseAbsentKeyword(args, timeoutMs);
   if (firstArg.startsWith('@')) return { kind: 'ref', rawRef: firstArg, timeoutMs };
   return parseSelectorOrText(args, timeoutMs);
 }
@@ -45,6 +50,34 @@ function parseStableKeyword(args: string[]): WaitParsed {
   const stableTimeoutMs = rest.length > 1 ? parseTimeout(rest[1]) : null;
   const quietMs = rest.length > 0 ? parseTimeout(rest[0]) : null;
   return { kind: 'stable', quietMs, timeoutMs: stableTimeoutMs };
+}
+
+function parseAbsentKeyword(args: string[], timeoutMs: number | null): WaitParsed {
+  const selectorArgs = timeoutMs !== null ? args.slice(1, -1) : args.slice(1);
+  const split = splitSelectorFromArgs(selectorArgs);
+  if (
+    selectorArgs.length > 0 &&
+    split?.rest.length === 0 &&
+    isValidSelectorExpression(split.selectorExpression)
+  ) {
+    return {
+      kind: 'absent',
+      selectorExpression: split.selectorExpression,
+      timeoutMs,
+    };
+  }
+  return {
+    kind: 'invalid',
+    reason: 'absent-selector-required',
+    message: formatAbsentSelectorMessage(selectorArgs),
+  };
+}
+
+function formatAbsentSelectorMessage(selectorArgs: string[]): string {
+  const raw = selectorArgs.join(' ');
+  return raw.length > 0
+    ? `wait absent requires one valid selector; received "${raw}". Use wait absent '<selector>' [timeoutMs].`
+    : 'wait absent requires <selector> [timeoutMs].';
 }
 
 /**
@@ -131,8 +164,9 @@ function formatSelectorShapedMessage(argsWithoutTimeout: string[]): string {
     const offending = plainTokens[0]!;
     const conditionHint = CONDITION_WORDS.has(offending.toLowerCase())
       ? ` "${offending}" describes a condition, not a selector key. Use the selector form: ` +
-        `wait 'visible ${selectorTokens.join(' ')}' [timeoutMs] to wait for it to appear, or ` +
-        `wait 'hidden ${selectorTokens.join(' ')}' [timeoutMs] to wait for it to disappear.`
+        (offending.toLowerCase() === 'gone' || offending.toLowerCase() === 'disappears'
+          ? `wait absent '${selectorTokens.join(' ')}' [timeoutMs] to wait for zero matches.`
+          : `wait '${selectorTokens.join(' ')}' [timeoutMs] to wait for it to appear.`)
       : ` "${offending}" is not a recognized selector key (${SELECTOR_KEY_NAMES.join(', ')}).`;
     return (
       `"${raw}" mixes plain word "${offending}" with selector-shaped "${selectorTokens.join(' ')}", ` +

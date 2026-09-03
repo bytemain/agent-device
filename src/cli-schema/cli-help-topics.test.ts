@@ -234,6 +234,7 @@ test('usageForCommand resolves workflow help topic', async () => {
   assert.match(help, /run serially within one session/);
   assert.match(help, /Wait failure contract:/);
   assert.match(help, /wait_target_absent: a readable capture ran and found no match/);
+  assert.match(help, /wait_target_present: wait absent timed out with matches/);
   assert.match(help, /wait_capture_stalled: no readable capture finished before the deadline/);
   assert.match(help, /wait_deadline_exceeded: a later capture used the remaining budget/);
   assert.match(help, /wait_landmark_identity_mismatch: a replay destination guard/);
@@ -547,7 +548,10 @@ test('usageForCommand resolves manual QA help topic', async () => {
   assert.match(help, /label="Email" editable=true/);
   assert.match(help, /press 'label="Follow"' --settle/);
   assert.match(help, /Do not use placeholders such as @ref/);
+  assert.match(help, /wait text\/selector\/absent/);
+  assert.match(help, /wait absent 'label="Loading\.\.\."' 3000/);
   assert.match(help, /wait_target_absent: a readable capture ran and found no match/);
+  assert.match(help, /wait_target_present: wait absent timed out with matches/);
   assert.match(help, /wait_capture_stalled: no readable capture finished before the deadline/);
 });
 

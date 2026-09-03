@@ -43,6 +43,11 @@ type WaitPollingOptions = {
   signal?: AbortSignal;
 };
 
+export type WaitPollingClassification = {
+  isUnreadableError?: (error: unknown) => boolean;
+  preserveUnreadableOnStall?: boolean;
+};
+
 type UnreadablePollTracker = {
   attempt: <T>(capture: () => Promise<T>) => Promise<T | undefined>;
   recordReadableCapture: () => void;
@@ -52,6 +57,7 @@ type UnreadablePollTracker = {
 
 type WaitFailurePolling = {
   failureEvidence: () => WaitFailureEvidence;
+  preserveUnreadableOnStall?: boolean;
   rethrowIfNeverReadable: () => void;
 };
 
@@ -65,11 +71,12 @@ export function createWaitPolling(
   options: WaitPollingOptions,
   requestedTimeoutMs: number | null | undefined,
   policy: SelectorPipelinePolicy,
+  classification: WaitPollingClassification = {},
 ) {
   const budget = selectorPollBudget(policy);
   const timeoutMs = requestedTimeoutMs ?? budget.defaultTimeoutMs;
   const startedAtMs = now(runtime);
-  const unreadable = createUnreadablePollTracker();
+  const unreadable = createUnreadablePollTracker(classification.isUnreadableError);
   let timeoutEvidence: Partial<WaitFailureEvidence> = {};
   const remainingMs = () => Math.max(0, timeoutMs - (now(runtime) - startedAtMs));
 
@@ -115,6 +122,7 @@ export function createWaitPolling(
       waitedMs: now(runtime) - startedAtMs,
       ...timeoutEvidence,
     }),
+    preserveUnreadableOnStall: classification.preserveUnreadableOnStall,
     rethrowIfNeverReadable: unreadable.rethrowIfNeverReadable,
     sleepUntilNextPoll: async () =>
       await sleepWithWaitCancellation(runtime, options, Math.min(budget.intervalMs, remainingMs())),
@@ -167,7 +175,10 @@ export function waitTimeoutError(
   if (deadline === 'runner-restart-exhausted') {
     return waitRunnerRestartExhaustedError(message, evidence);
   }
-  if (deadline === 'capture-stalled') return waitCaptureStalledError(message, evidence);
+  if (deadline === 'capture-stalled') {
+    if (polling.preserveUnreadableOnStall) polling.rethrowIfNeverReadable();
+    return waitCaptureStalledError(message, evidence);
+  }
   if (deadline === 'capture-truncated') return waitDeadlineExceededError(message, evidence);
 
   polling.rethrowIfNeverReadable();
@@ -200,7 +211,9 @@ function copyStringDetail<Key extends keyof WaitFailureEvidence>(
   return typeof value === 'string' ? ({ [key]: value } as Pick<WaitFailureEvidence, Key>) : {};
 }
 
-function createUnreadablePollTracker(): UnreadablePollTracker {
+function createUnreadablePollTracker(
+  isUnreadableError: (error: unknown) => boolean = isUnreadableCaptureContentError,
+): UnreadablePollTracker {
   let readableCaptureCount = 0;
   let lastUnreadableError: unknown;
   return {
@@ -208,7 +221,7 @@ function createUnreadablePollTracker(): UnreadablePollTracker {
       try {
         return await capture();
       } catch (error) {
-        if (!isUnreadableCaptureContentError(error)) throw error;
+        if (!isUnreadableError(error)) throw error;
         lastUnreadableError = error;
         return undefined;
       }
