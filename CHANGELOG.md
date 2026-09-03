@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Added the `harmonyos-instance` remote lease backend so HarmonyOS proxy devices can participate in
-  the same explicit allocation, heartbeat, and close lifecycle as other remote instances (#2266).
+- Added the `harmonyos-instance` lease contract and CLI/runtime plumbing as a prerequisite for
+  HarmonyOS proxy support; provider/daemon allocation remains gated until its end-to-end lifecycle
+  is implemented and validated (#2266).
 
 - Fixed: `settings airplane on|off` now takes an Android device offline. It is applied through
   the connectivity service (`cmd connectivity airplane-mode`), which drives the radios, instead of
