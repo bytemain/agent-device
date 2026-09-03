@@ -5,7 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { validateRawResult } from './schema.ts';
 import type { BenchmarkResult } from './types.ts';
 
-const EVIDENCE_BRANCH = 'evidence/ios-snapshot';
+/**
+ * The evidence/ios-snapshot branch tip is mutable; this annotated tag and the full commit SHA
+ * below are the durable, immutable ref the corpus is pinned to. Re-tag (a new suffix, a new
+ * commit) if the corpus is ever re-measured — never move this tag.
+ */
+export const EVIDENCE_TAG = 'refs/tags/evidence/ios-snapshot/71fb2483f';
+export const EVIDENCE_COMMIT = '2d4baf461aa8897d49c6d4683cd16d8f43588ae8';
 export const DEFAULT_EVIDENCE_DIR = path.join(import.meta.dirname, 'evidence');
 export const EVIDENCE_FIXTURE_PATH = path.join(import.meta.dirname, 'evidence-fixture.v1.json');
 
@@ -31,7 +37,7 @@ export type EvidenceFile = {
 
 export function fetchEvidenceCommand(file = '<file>'): string {
   const destination = path.posix.join('scripts/ios-snapshot-benchmark/evidence', file);
-  return `git fetch origin ${EVIDENCE_BRANCH} && git show FETCH_HEAD:${file} > ${destination}`;
+  return `git fetch origin ${EVIDENCE_TAG} && git show ${EVIDENCE_COMMIT}:${file} > ${destination}`;
 }
 
 export function listEvidenceFiles(dir: string): string[] {
@@ -91,28 +97,57 @@ function parseJson(text: string): { ok: true; value: unknown } | { ok: false; er
   }
 }
 
-function readEvidenceDirOption(argv: string[]): string {
+/**
+ * --evidence-dir intentionally stays permissive: a custom directory (a fresh --out location, a
+ * partial re-check) is not required to hold the complete published corpus. Only the default
+ * directory — the one this repo ships evidence into — is held to the full PUBLISHED_EVIDENCE
+ * filename set.
+ */
+function readEvidenceDirOption(argv: string[]): { dir: string; isDefault: boolean } {
   const normalized = argv[0] === '--' ? argv.slice(1) : argv;
-  if (normalized.length === 0) return DEFAULT_EVIDENCE_DIR;
+  if (normalized.length === 0) return { dir: DEFAULT_EVIDENCE_DIR, isDefault: true };
   if (normalized[0] === '--evidence-dir' && normalized[1] && normalized.length === 2) {
-    return path.resolve(normalized[1]);
+    return { dir: path.resolve(normalized[1]), isDefault: false };
   }
   throw new Error('Usage: pnpm bench:ios-snapshot:evidence -- [--evidence-dir <dir>]');
 }
 
-function runEvidenceReport(argv: string[]): void {
-  const dir = readEvidenceDirOption(argv);
-  const files = readEvidenceDir(dir);
-  if (files.length === 0) {
-    throw new Error(`${dir} holds no evidence; fetch it with: ${fetchEvidenceCommand()}`);
-  }
-  process.stdout.write(renderEvidenceReport(dir, files));
+export function missingPublishedEvidence(files: EvidenceFile[]): string[] {
+  const present = new Set(files.map((entry) => entry.file));
+  return Object.keys(PUBLISHED_EVIDENCE).filter((file) => !present.has(file));
+}
+
+/**
+ * Throws on schema/hash rejects, always. Throws on an incomplete corpus only when `isDefault` is
+ * set — the default directory must hold the full published filename set; an explicit
+ * --evidence-dir stays permissive by design (see readEvidenceDirOption).
+ */
+export function checkEvidenceCorpus(dir: string, files: EvidenceFile[], isDefault: boolean): void {
   const rejected = files.filter(
     (entry) => entry.errors.length > 0 || entry.published === 'mismatch',
   );
   if (rejected.length > 0) {
     throw new Error(`${rejected.length} evidence file(s) failed validation.`);
   }
+  if (isDefault) {
+    const missing = missingPublishedEvidence(files);
+    if (missing.length > 0) {
+      throw new Error(
+        `${dir} is missing published evidence file(s): ${missing.join(', ')}. Fetch them with: ` +
+          `${fetchEvidenceCommand()}`,
+      );
+    }
+  }
+}
+
+export function runEvidenceReport(argv: string[]): void {
+  const { dir, isDefault } = readEvidenceDirOption(argv);
+  const files = readEvidenceDir(dir);
+  if (files.length === 0) {
+    throw new Error(`${dir} holds no evidence; fetch it with: ${fetchEvidenceCommand()}`);
+  }
+  process.stdout.write(renderEvidenceReport(dir, files));
+  checkEvidenceCorpus(dir, files, isDefault);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

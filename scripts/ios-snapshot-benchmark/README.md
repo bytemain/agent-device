@@ -62,8 +62,10 @@ The conditioner is semantics-preserving at zero packet loss. Non-zero loss is an
 
 The complete exact-head corpus from `bench-golden-v2` (iPhone 17 Pro, iOS 27.0) measured at
 revision `71fb2483f30d90e615e949601c836aeebbf450c5` is published on the orphan branch
-`evidence/ios-snapshot`; [`evidence/README.md`](./evidence/README.md) records each file's sha256
-and the fetch recipe. The Markdown summaries stay under [`evidence/`](./evidence/):
+`evidence/ios-snapshot`, pinned to the immutable tag `evidence/ios-snapshot/71fb2483f`
+(commit `2d4baf461aa8897d49c6d4683cd16d8f43588ae8`); [`evidence/README.md`](./evidence/README.md)
+records each file's sha256 and the fetch recipe against that tag and commit. The Markdown
+summaries stay under [`evidence/`](./evidence/):
 
 - [`ios-snapshot-cold-local-71fb2483f`](./evidence/ios-snapshot-cold-local-71fb2483f.md)
   covers cold-cold and cold lifecycle cells across all six screens with 10 samples per cell.

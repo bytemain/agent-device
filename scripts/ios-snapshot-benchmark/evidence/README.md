@@ -2,9 +2,11 @@
 
 The raw `pnpm bench:ios-snapshot` results measured at commit
 `71fb2483f30d90e615e949601c836aeebbf450c5` on `bench-golden-v2` (iPhone 17 Pro, iOS 27.0) live on
-the orphan branch `evidence/ios-snapshot`, not in this tree. Only their Markdown summaries are kept
-here. The published hashes are declared in [`../evidence.ts`](../evidence.ts) as
-`PUBLISHED_EVIDENCE`:
+the orphan branch `evidence/ios-snapshot`, not in this tree. The branch tip is mutable; the durable
+ref is the annotated tag `evidence/ios-snapshot/71fb2483f`, pinned to commit
+`2d4baf461aa8897d49c6d4683cd16d8f43588ae8` — fetch and read from the tag and that full SHA, never
+from the branch tip. Only Markdown summaries are kept here. The published hashes are declared in
+[`../evidence.ts`](../evidence.ts) as `PUBLISHED_EVIDENCE`:
 
 | File | sha256 |
 | --- | --- |
@@ -17,17 +19,17 @@ here. The published hashes are declared in [`../evidence.ts`](../evidence.ts) as
 One file, from the repository root:
 
 ```sh
-git fetch origin evidence/ios-snapshot && git show FETCH_HEAD:<file> > scripts/ios-snapshot-benchmark/evidence/<file>
+git fetch origin refs/tags/evidence/ios-snapshot/71fb2483f && git show 2d4baf461aa8897d49c6d4683cd16d8f43588ae8:<file> > scripts/ios-snapshot-benchmark/evidence/<file>
 ```
 
 The whole corpus, then a schema and hash check:
 
 ```sh
-git fetch origin evidence/ios-snapshot
+git fetch origin refs/tags/evidence/ios-snapshot/71fb2483f
 for f in ios-snapshot-cold-local-71fb2483f.json \
          ios-snapshot-warm-relaunch-local-71fb2483f.json \
          ios-snapshot-proxy-71fb2483f.json; do
-  git show FETCH_HEAD:$f > scripts/ios-snapshot-benchmark/evidence/$f
+  git show 2d4baf461aa8897d49c6d4683cd16d8f43588ae8:$f > scripts/ios-snapshot-benchmark/evidence/$f
 done
 pnpm bench:ios-snapshot:evidence
 ```

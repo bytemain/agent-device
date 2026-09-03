@@ -7,12 +7,14 @@ import {
   DEFAULT_EVIDENCE_DIR,
   EVIDENCE_FIXTURE_PATH,
   PUBLISHED_EVIDENCE,
+  checkEvidenceCorpus,
   fetchEvidenceCommand,
   listEvidenceFiles,
   readEvidenceDir,
   readEvidenceFile,
   renderEvidenceReport,
 } from './evidence.ts';
+import type { EvidenceFile } from './evidence.ts';
 
 const temporaryDirs: string[] = [];
 
@@ -76,6 +78,32 @@ test('the evidence README cites every published hash and the fetch recipe', () =
     assert.ok(readme.includes(sha256), `README does not cite the sha256 of ${file}`);
   }
   assert.ok(readme.includes(fetchEvidenceCommand()));
+});
+
+function oneOfThreePublishedFiles(): EvidenceFile {
+  const [file, sha256] = Object.entries(PUBLISHED_EVIDENCE)[0]!;
+  return {
+    file,
+    sha256,
+    published: 'match',
+    revision: '71fb2483f30d90e615e949601c836aeebbf450c5',
+    status: 'completed',
+    cells: 2,
+    errors: [],
+  };
+}
+
+test('the default evidence directory must hold the complete published corpus, named files and all', () => {
+  const dir = temporaryEvidenceDir({});
+  assert.throws(
+    () => checkEvidenceCorpus(dir, [oneOfThreePublishedFiles()], true),
+    /is missing published evidence file\(s\): ios-snapshot-warm-relaunch-local-71fb2483f\.json, ios-snapshot-proxy-71fb2483f\.json/,
+  );
+});
+
+test('an explicit --evidence-dir stays permissive: a partial corpus does not fail completeness', () => {
+  const dir = temporaryEvidenceDir({});
+  assert.doesNotThrow(() => checkEvidenceCorpus(dir, [oneOfThreePublishedFiles()], false));
 });
 
 test('fetched evidence under the in-tree directory matches the published corpus', (context) => {
