@@ -47,6 +47,7 @@ export type AndroidAlertResult =
       handled: true;
       alert: AndroidAlertInfo;
       button: string;
+      coordinates?: { x: number; y: number };
       message?: string;
     };
 
@@ -102,7 +103,10 @@ async function handleAndroidAlertAction(
   const button = chooseAndroidAlertButton(candidate.buttons, action);
   if (button) {
     await pressAndroid(device, button.x, button.y);
-    return buildAndroidAlertHandledResponse(action, candidate.alert, button.label);
+    return buildAndroidAlertHandledResponse(action, candidate.alert, button.label, {
+      x: button.x,
+      y: button.y,
+    });
   }
 
   if (action === 'dismiss') {
@@ -153,6 +157,7 @@ function buildAndroidAlertHandledResponse(
   action: 'accept' | 'dismiss',
   alert: AndroidAlertInfo,
   button: string,
+  coordinates?: { x: number; y: number },
 ): AndroidAlertResult {
   return {
     kind: 'alertHandled',
@@ -161,6 +166,7 @@ function buildAndroidAlertHandledResponse(
     handled: true,
     alert,
     button,
+    ...(coordinates ? { coordinates } : {}),
     ...successText(`Alert ${action}ed`),
   };
 }

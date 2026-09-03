@@ -140,7 +140,7 @@ export function createLiveDeviceHarness<
       status: result.status,
       step,
     });
-    assertStepOutcome(context, step, fullArgs, result, failedAsExpected, stepOptions);
+    await assertStepOutcome(context, step, fullArgs, result, failedAsExpected, stepOptions);
     updateSessionState(context, args[0], result.status);
     return result;
   }
@@ -158,27 +158,51 @@ export function createLiveDeviceHarness<
     writeStepHistory(context);
   }
 
-  function assertStepOutcome(
+  async function assertStepOutcome(
     context: Context,
     step: string,
     fullArgs: string[],
     result: CliJsonResult,
     failedAsExpected: boolean,
     stepOptions: RunStepOptions,
-  ): void {
+  ): Promise<void> {
     const unexpectedFailure =
       result.status !== 0 && !failedAsExpected && stepOptions.allowFailure !== true;
     if (unexpectedFailure) {
+      const screenshotPath =
+        fullArgs[0] === 'wait' ? await captureWaitTimeoutScreenshot(context) : undefined;
       const message = [
         formatResultDebug(step, fullArgs, result),
         `scenario: ${context.currentScenario}`,
         `artifacts: ${context.artifactDir}`,
+        `screenshot: ${screenshotPath ?? '(capture failed or not applicable)'}`,
       ].join('\n');
       fs.writeFileSync(path.join(context.artifactDir, 'failed-step.txt'), message);
       assert.fail(message);
     }
     if (stepOptions.expectFailure === true && result.status === 0) {
       assert.fail(`${step} unexpectedly succeeded\ncommand: agent-device ${fullArgs.join(' ')}`);
+    }
+  }
+
+  /**
+   * Best-effort evidence for a `wait` timeout: the daemon's own surface dump caps at a handful of
+   * labels, so a screenshot is the only artifact that shows the whole screen the wait gave up on.
+   * A failed capture must not mask the original wait failure, so this never throws.
+   */
+  async function captureWaitTimeoutScreenshot(context: Context): Promise<string | undefined> {
+    const screenshotPath = path.join(
+      context.artifactDir,
+      `wait-timeout-${context.stepHistory.length}.png`,
+    );
+    try {
+      const capture = await (options.runCli ?? runBuiltCliJson)(
+        options.commonFlags(context, ['screenshot', screenshotPath]),
+        context.env,
+      );
+      return capture.status === 0 ? screenshotPath : undefined;
+    } catch {
+      return undefined;
     }
   }
 
