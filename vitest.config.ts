@@ -242,6 +242,7 @@ export default defineConfig({
       exclude: [
         'src/**/*.test.ts',
         'src/**/__tests__/**',
+        '**/*.fixtures.ts',
         'src/**/*-types.ts',
         'src/**/types.ts',
         'src/sdk/**',
