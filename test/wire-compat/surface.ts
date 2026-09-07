@@ -177,6 +177,8 @@ export const WIRE_SURFACE: readonly WireSurfaceGroup[] = [
         'DaemonRequest',
         'DaemonRequestMeta',
         'SessionRuntimeHints',
+        'SESSION_RUNTIME_PLATFORMS',
+        'SessionRuntimePlatform',
         'daemonRuntimeSchema',
         'DaemonInstallSource',
         'DAEMON_LOCK_POLICIES',

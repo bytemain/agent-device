@@ -28,7 +28,11 @@ import {
 import { profileToCliFlags } from '../remote-config-flags.ts';
 import type { BatchStep } from '@agent-device/contracts/client';
 import { AppError } from '@agent-device/kernel/errors';
-import type { LeaseBackend, SessionRuntimeHints } from '@agent-device/kernel/contracts';
+import {
+  isSessionRuntimePlatform,
+  type LeaseBackend,
+  type SessionRuntimeHints,
+} from '@agent-device/kernel/contracts';
 import type { CliFlags } from '@agent-device/contracts/command';
 import type { AgentDeviceClient, Lease } from '../../agent-device-client.ts';
 import type { CloudProviderSessionResult } from '@agent-device/contracts/observability';
@@ -734,11 +738,7 @@ function isRuntimeCompatibleWithPlatform(
   runtime: SessionRuntimeHints,
   platform: CliFlags['platform'],
 ): boolean {
-  if (
-    !runtime.platform ||
-    !platform ||
-    (platform !== 'ios' && platform !== 'android' && platform !== 'harmonyos')
-  ) {
+  if (!runtime.platform || !platform || !isSessionRuntimePlatform(platform)) {
     return true;
   }
   return runtime.platform === platform;
@@ -892,7 +892,7 @@ function applyResolvedDeviceSelector(flags: CliFlags, device: DeviceInfo): void 
     flags.udid = device.id;
     return;
   }
-  if (device.platform === 'android') {
+  if (device.platform === 'android' || device.platform === 'harmonyos') {
     flags.serial = device.id;
   }
 }

@@ -178,7 +178,7 @@ function setRuntimeCommand(params: {
   if (!platform) {
     return errorResponse(
       'INVALID_ARGS',
-      'runtime set only supports iOS and Android sessions. Pass --platform ios|android or open an iOS/Android session first.',
+      'runtime set only supports iOS, Android, and HarmonyOS sessions. Pass --platform ios|android|harmonyos or open a supported session first.',
     );
   }
   if (sessionLeaf !== undefined && sessionLeaf !== platform) {

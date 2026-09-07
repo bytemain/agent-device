@@ -26,16 +26,18 @@
     "packages/kernel/src/contracts.ts#DaemonResponseData": "sha256:f16e61b7f0ea8cdae82349508383af2f97a4c16c8aa21952d833094673f86afc",
     "packages/kernel/src/contracts.ts#JsonRpcId": "sha256:5a5fdff1cd85971214117d69a8278d0ecaf21a6fa3f4582155d9b3d9cad1fbd0",
     "packages/kernel/src/contracts.ts#JsonRpcRequestEnvelope": "sha256:d6328309fc4f8b310b88680181e46c802329de9b0e45682dd2e0f0c3e8d090e4",
-    "packages/kernel/src/contracts.ts#LEASE_BACKENDS": "sha256:6bec996666d1043a8d23e60d5b1e50ef9341909a02f19060a3132bb72dcc3155",
+    "packages/kernel/src/contracts.ts#LEASE_BACKENDS": "sha256:1b29207af3c9ec65b999e4d3f9ab839004472897f748f8d4f4ab964de54efc9f",
     "packages/kernel/src/contracts.ts#LeaseBackend": "sha256:dce397343cda82ce4e3e43b534b1f642cd37568ed304f4783caddc3524c1cae5",
     "packages/kernel/src/contracts.ts#RESPONSE_LEVELS": "sha256:cef29c3b56c299e35a7fee8058b90dc4a6f65a46a420e4f11f77c8ca7d0359c8",
     "packages/kernel/src/contracts.ts#ResponseCost": "sha256:2a44de54e8b5c886b36da1500e22d634ec7e12961d2c93b689d2b1aa8c15f186",
     "packages/kernel/src/contracts.ts#ResponseLevel": "sha256:c7329d28e745b5e69b86aa1a686befa314b98248afbe5e0e2d7d395f0d777f9b",
     "packages/kernel/src/contracts.ts#SESSION_ISOLATION_MODES": "sha256:3d4b3048e22bb0ceccc98cf8fd93a87a1a1e2dad96fa03cffff6d0ecedb58689",
     "packages/kernel/src/contracts.ts#SessionIsolationMode": "sha256:beea941fe57b000902da28af15a27aa18d0c957408209e3ec372fcf7f605fa7c",
-    "packages/kernel/src/contracts.ts#SessionRuntimeHints": "sha256:7e055a99bc6adbb3efc37b0691055f5370f35f8b96ae6af73295ccce61e05dfe",
+    "packages/kernel/src/contracts.ts#SESSION_RUNTIME_PLATFORMS": "sha256:6164fc8ca226b5beb3ba52a8dddd3c11633a8accec58b9f8972c44c8339a1bf7",
+    "packages/kernel/src/contracts.ts#SessionRuntimePlatform": "sha256:694b301564f2c9da5d252be7e26c20bd53eed715b27033c2162c2a11606a9092",
+    "packages/kernel/src/contracts.ts#SessionRuntimeHints": "sha256:94b4d9778b6bd3c5fb401fab6fe253473e4950f477e2d7c2fc02630ef7fdbb62",
     "packages/kernel/src/contracts.ts#commandRpcParamsSchema": "sha256:d0ce05c236ce5b0b52631ab7b8a75d38859fbfba58cfb28dd3f9d84f2dba2c1f",
-    "packages/kernel/src/contracts.ts#daemonRuntimeSchema": "sha256:859eabaf6679d117feb2b4873b6ac69731cc06989645080817d39c43a24deea5",
+    "packages/kernel/src/contracts.ts#daemonRuntimeSchema": "sha256:3b99926ce9deb5d66186a55b1168011dc1ae4d010ada5ac5d79c4c7225a1f80f",
     "packages/kernel/src/contracts.ts#jsonRpcRequestSchema": "sha256:67e6b8a28b39a3883424a565ae7033c336dc2ea6b193e9b32bb98eb3e18dca7c",
     "packages/kernel/src/device.ts#PLATFORM_SELECTORS": "sha256:36e9da1cc660c0ddfb4cf52521f7f230341ff20e3ebda3405ba7c1799476c42d",
     "packages/kernel/src/device.ts#PlatformSelector": "sha256:61de3f003507ea2f53b396b0146c17670bf674a2db2132e19c462ca6c10cc8fd",
@@ -286,17 +288,17 @@
     },
     {
       "declaration": "packages/kernel/src/contracts.ts#LEASE_BACKENDS",
-      "digest": "sha256:6bec996666d1043a8d23e60d5b1e50ef9341909a02f19060a3132bb72dcc3155",
+      "digest": "sha256:1b29207af3c9ec65b999e4d3f9ab839004472897f748f8d4f4ab964de54efc9f",
       "rationale": "#2266 adds the additive harmonyos-instance lease backend literal. Protocol-2 peers ignore the new backend unless explicitly requested; existing iOS/Android values and payloads remain unchanged."
     },
     {
       "declaration": "packages/kernel/src/contracts.ts#SessionRuntimeHints",
-      "digest": "sha256:7e055a99bc6adbb3efc37b0691055f5370f35f8b96ae6af73295ccce61e05dfe",
-      "rationale": "#2266 adds the optional HarmonyOS platform value to runtime hints. Existing iOS/Android hints retain their shape and released peers can ignore the additive value."
+      "digest": "sha256:94b4d9778b6bd3c5fb401fab6fe253473e4950f477e2d7c2fc02630ef7fdbb62",
+      "rationale": "#2266 derives the optional runtime platform from one shared vocabulary, adding harmonyos without changing existing iOS/Android payloads. Older peers can refuse the new value with the existing validation error."
     },
     {
       "declaration": "packages/kernel/src/contracts.ts#daemonRuntimeSchema",
-      "digest": "sha256:859eabaf6679d117feb2b4873b6ac69731cc06989645080817d39c43a24deea5",
+      "digest": "sha256:3b99926ce9deb5d66186a55b1168011dc1ae4d010ada5ac5d79c4c7225a1f80f",
       "rationale": "#2266 broadens runtime-hint validation to accept the additive HarmonyOS platform value; existing protocol-2 runtime hints remain valid and unchanged."
     }
   ]

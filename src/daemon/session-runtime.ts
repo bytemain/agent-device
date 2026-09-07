@@ -4,6 +4,7 @@ import {
   hasRuntimeTransportHintValues,
 } from '@agent-device/contracts/application-lifecycle-runtime';
 import { AppError, asAppError } from '@agent-device/kernel/errors';
+import { isSessionRuntimePlatform } from '@agent-device/kernel/contracts';
 import { publicPlatformString, type DeviceInfo } from '@agent-device/kernel/device';
 import type { DaemonRequest } from './daemon-request.ts';
 import type { SessionRuntimeHints, SessionState } from './session-state.ts';
@@ -87,7 +88,7 @@ function normalizeRuntimePlatformInput(
   platform?: RuntimePlatform,
 ): RuntimePlatform | undefined {
   if (value === undefined) return platform;
-  if (value !== 'ios' && value !== 'android' && value !== 'harmonyos') {
+  if (!isSessionRuntimePlatform(value)) {
     throw new AppError(
       'INVALID_ARGS',
       `Invalid open runtime platform: ${String(value)}. Use "ios", "android", or "harmonyos".`,
@@ -105,7 +106,7 @@ function normalizeRuntimePlatformInput(
 export function toRuntimePlatform(
   platform: CommandFlags['platform'] | DeviceInfo['platform'] | 'apple' | undefined,
 ): RuntimePlatform | undefined {
-  if (platform === 'ios' || platform === 'android' || platform === 'harmonyos') {
+  if (isSessionRuntimePlatform(platform)) {
     return platform;
   }
   return undefined;

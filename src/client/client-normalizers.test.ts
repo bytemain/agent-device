@@ -1,6 +1,24 @@
 import assert from 'node:assert/strict';
 import { expect, test } from 'vitest';
-import { normalizeDevice, normalizeOpenForegroundComposition } from './client-normalizers.ts';
+import {
+  normalizeDevice,
+  normalizeOpenForegroundComposition,
+  normalizeRuntimeHints,
+} from './client-normalizers.ts';
+
+test.each(['ios', 'android', 'harmonyos'])('runtime response preserves %s platform', (platform) => {
+  expect(normalizeRuntimeHints({ platform, launchUrl: 'demo://open' })).toMatchObject({
+    platform,
+    launchUrl: 'demo://open',
+  });
+});
+
+test.each(['apple', 'unknown', 12])(
+  'runtime response ignores non-runtime platform %s',
+  (platform) => {
+    expect(normalizeRuntimeHints({ platform })?.platform).toBeUndefined();
+  },
+);
 
 test('embedded daemon errors sanitize an untrusted cause before client exposure', () => {
   const secret = 'adc_live_remote-secret';
