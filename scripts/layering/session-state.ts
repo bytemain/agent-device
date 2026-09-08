@@ -25,8 +25,10 @@
 // the set of writers that exist, so the gate's job is to stop the set from growing quietly.
 // Adding a field to `SessionState` forces a deliberate owner; writing an existing field from
 // a new module fails until that module is either declared an owner or, better, calls the
-// owner instead. ADR 0014's ref frame is the worked example — its four fields moved together
-// across two modules until `activateRefFrame` took the transition.
+// owner instead. ADR 0014's ref frame is the worked example, and the one that has since been
+// taken further than this table can go: its four fields moved together across two modules
+// until `activateRefFrame` took the transition, and they are now a single value whose nominal
+// type no other module can construct, edit, or derive from an existing frame.
 //
 // Detection is AST-based (`oxc-parser`, already a devDependency) rather than a line regex. A
 // regex has to enumerate assignment operators, and the ones it forgets are exactly the ones
@@ -49,12 +51,13 @@ export type SessionStateWrite = {
  * owner list has one entry is a field only that module can get wrong.
  */
 export const SESSION_STATE_FIELD_OWNERS: Readonly<Record<string, readonly string[]>> = {
-  // ADR 0014 ref frame: the four frame fields move together or the frame is incoherent, so
-  // both issuance forms go through ref-frame.ts.
-  refFrameState: ['src/daemon/ref-frame.ts'],
-  refFrameScope: ['src/daemon/ref-frame.ts'],
-  refFrameTree: ['src/daemon/ref-frame.ts'],
-  refFrameGeneration: ['src/daemon/ref-frame.ts'],
+  // ADR 0014 ref frame. The four frame fields this row replaced moved together or the frame was
+  // incoherent, and only this table said so; `RefFrame` is now a nominal type (`#`-private
+  // fields) that no other module can construct, edit, or spread into a new frame, and the
+  // transitions replace it whole. The row stays because the type cannot judge a whole frame
+  // moved unchanged: assigning `undefined` (a reset to the pristine frame) and assigning a
+  // frame read off another session.
+  refFrame: ['src/daemon/ref-frame.ts'],
   // Scoped-snapshot lineage is cleared at two distinct events: crossing a device side-effect
   // seam (ref-frame.ts) and replacing the stored observation (session-snapshot.ts).
   snapshotScopeSource: ['src/daemon/ref-frame.ts', 'src/daemon/session-snapshot.ts'],
@@ -163,13 +166,30 @@ export function fieldClassificationDrift(fields: readonly string[]): FieldClassi
   return drift.sort((left, right) => left.field.localeCompare(right.field));
 }
 
+const SESSION_STATE_DECLARATION = /export type SessionState = \{([\s\S]*?)\n\};/;
+
+/**
+ * The daemon module that declares `SessionState`, found by the declaration rather than by a
+ * recorded path. `sessionStateWritePressure` below measures the merge-base tree with the same
+ * function, and that tree's declaration may still sit where this tree no longer has it — a
+ * path constant would silently measure such a tree as zero pressure and bank the headroom.
+ */
+export function sessionStateDeclarationFile(
+  sources: ReadonlyMap<string, string>,
+): string | undefined {
+  for (const [file, source] of sources) {
+    if (file.startsWith('src/daemon/') && SESSION_STATE_DECLARATION.test(source)) return file;
+  }
+  return undefined;
+}
+
 /**
  * Field names declared by `SessionState` itself, so the scan cannot be fooled by a daemon
  * module with an unrelated local named `session` (a provider session, a runner session).
  */
 export function sessionStateFields(typesSource: string): string[] {
-  const declaration = /export type SessionState = \{([\s\S]*?)\n\};/.exec(typesSource);
-  if (!declaration) throw new Error('SessionState declaration not found in daemon/types.ts');
+  const declaration = SESSION_STATE_DECLARATION.exec(typesSource);
+  if (!declaration) throw new Error('SessionState declaration not found');
   return [...declaration[1]!.matchAll(/^ {2}([a-zA-Z][A-Za-z0-9]*)\??:/gm)].map(
     (match) => match[1]!,
   );
@@ -273,4 +293,32 @@ export function findSessionStateWrites(
   return writes.sort(
     (left, right) => left.file.localeCompare(right.file) || left.line - right.line,
   );
+}
+
+export type SessionStateWritePressure = Readonly<{
+  /** Declared fields that some daemon module writes directly. */
+  writerOwnedFields: number;
+  /** Distinct (field, writing module) pairs — what `SESSION_STATE_FIELD_OWNERS` claims. */
+  ownerFileClaims: number;
+}>;
+
+/**
+ * R10's measurement of R7 pressure: how many declared fields have a direct writer, and how many
+ * module claims that takes. Read from the tree rather than from the ownership table, so the same
+ * function measures a merge-base tree whose table is not in scope. On a tree R7 accepts, both
+ * numbers equal the table's own size.
+ */
+export function sessionStateWritePressure(
+  sources: ReadonlyMap<string, string>,
+): SessionStateWritePressure {
+  const declarationFile = sessionStateDeclarationFile(sources);
+  if (!declarationFile) return { writerOwnedFields: 0, ownerFileClaims: 0 };
+  const writes = findSessionStateWrites(
+    sources,
+    sessionStateFields(sources.get(declarationFile)!),
+  ).filter((write) => write.field !== '[computed]');
+  return {
+    writerOwnedFields: new Set(writes.map((write) => write.field)).size,
+    ownerFileClaims: new Set(writes.map((write) => `${write.field}\0${write.file}`)).size,
+  };
 }

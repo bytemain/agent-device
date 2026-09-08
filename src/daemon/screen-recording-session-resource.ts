@@ -10,12 +10,12 @@ import type {
   ScreenRecordingLiveHandle,
 } from '@agent-device/contracts/screen-recording-runtime';
 import type { DeviceInfo } from '@agent-device/kernel/device';
-import type { DurableCaptureRecoveryControl } from './durable-capture-recovery-authority.ts';
+import type { DurableCaptureRecoveryControl } from '@agent-device/capture-kit/durable-capture';
 import { createDurableCaptureResource } from './durable-capture-resource.ts';
 import type { ScreenRecordingAdmissionLedger } from './screen-recording-admission-ledger.ts';
 import { screenRecordingResourceStore } from './screen-recording-resource-store.ts';
 import type { SessionStore } from './session-store.ts';
-import type { SessionState } from './types.ts';
+import type { SessionState } from './session-state.ts';
 
 export const screenRecordingDurableResource = createDurableCaptureResource<
   'screen-recording',

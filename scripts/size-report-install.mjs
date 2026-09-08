@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { assertSnapshotBridgeAssets, SNAPSHOT_BRIDGE_ASSET_PATHS } from './size-report-package.mjs';
 
 export function measureCleanInstalledPackage(tarballPath, packageName) {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-device-size-install-'));
@@ -33,10 +34,23 @@ export function measureCleanInstalledPackage(tarballPath, packageName) {
     if (!fs.existsSync(packageDir)) {
       throw new Error(`Clean install did not create node_modules/${packageName}.`);
     }
-    return measureDirectory(packageDir);
+    assertInstalledSnapshotBridge(packageDir);
+    return {
+      ...measureDirectory(packageDir),
+      totalBytes: measureDirectory(path.join(consumerDir, 'node_modules')).packageBytes,
+    };
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true });
   }
+}
+
+export function assertInstalledSnapshotBridge(packageDir) {
+  const bridgeRoot = path.join(packageDir, 'apple', 'snapshot-bridge');
+  if (!fs.existsSync(bridgeRoot)) return;
+  const present = SNAPSHOT_BRIDGE_ASSET_PATHS.filter((assetPath) =>
+    fs.existsSync(path.join(packageDir, assetPath)),
+  );
+  assertSnapshotBridgeAssets(present, 'Clean-installed snapshot bridge');
 }
 
 export function measureDirectory(root) {

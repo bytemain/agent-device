@@ -8,14 +8,14 @@ import {
   makeRepairCompleteSession,
 } from '../../../../__tests__/test-utils/session-factories.ts';
 import { SessionStore } from '../../../session-store.ts';
-import type { DaemonRequest } from '../../../types.ts';
+import type { DaemonRequest } from '../../../daemon-request.ts';
 import {
   buildRetriableRepairCloseFailureResponse,
   commitRepairScriptBeforeClose,
   finalizeOrdinaryCloseScript,
 } from '../session-close-script.ts';
 import { mkdtempForTestSync } from '../../../../__tests__/test-utils/tmp-dir.ts';
-import { flushSessionEventLogWrites } from '../../../session-event-log.ts';
+import { flushSessionEventLogWrites } from '@agent-device/session-journal/session-event-log';
 
 const roots: string[] = [];
 

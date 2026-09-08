@@ -17,20 +17,14 @@ import {
   requiredDaemonString,
 } from '../cli-grammar/common.ts';
 import type { CliReader, DaemonWriter } from '../cli-grammar/types.ts';
-import { defineExecutableCommand } from '../command-contract.ts';
 import { enumField, integerField, requiredField, stringField } from '../command-input.ts';
 import { compactRecord } from '../input-readers.ts';
-import {
-  defineCommandFacet,
-  defineCommandFamilyFromFacets,
-  projectCommandOutputSchemas,
-} from '../family/types.ts';
+import { defineCommandFacet, defineCommandFamilyFromFacets } from '../family/types.ts';
 import { defineFieldCommandMetadata } from '../field-command-contract.ts';
 import {
   postActionObservationCliFlags,
   postActionObservationFields,
 } from '../post-action-observation-grammar.ts';
-import { NAVIGATION_COMMAND_PROJECTIONS } from './navigation-projection.ts';
 import { systemCliOutputFormatters } from './output.ts';
 
 const APPSTATE_COMMAND_NAME = 'appstate';
@@ -121,51 +115,6 @@ const tvRemoteCommandMetadata = defineFieldCommandMetadata(
       },
     ),
   },
-);
-
-const appStateCommandDefinition = defineExecutableCommand(
-  appStateCommandMetadata,
-  (client, input) => client.command.appState(input),
-);
-
-const backCommandDefinition = defineExecutableCommand(
-  backCommandMetadata,
-  (client, input) => client.command.back(input),
-  NAVIGATION_COMMAND_PROJECTIONS.back,
-);
-
-const homeCommandDefinition = defineExecutableCommand(
-  homeCommandMetadata,
-  (client, input) => client.command.home(input),
-  NAVIGATION_COMMAND_PROJECTIONS.home,
-);
-
-const orientationCommandDefinition = defineExecutableCommand(
-  orientationCommandMetadata,
-  (client, input) => client.command.orientation(input),
-  NAVIGATION_COMMAND_PROJECTIONS.orientation,
-);
-
-const appSwitcherCommandDefinition = defineExecutableCommand(
-  appSwitcherCommandMetadata,
-  (client, input) => client.command.appSwitcher(input),
-  NAVIGATION_COMMAND_PROJECTIONS['app-switcher'],
-);
-
-const keyboardCommandDefinition = defineExecutableCommand(
-  keyboardCommandMetadata,
-  (client, input) => client.command.keyboard(input),
-);
-
-const clipboardCommandDefinition = defineExecutableCommand(
-  clipboardCommandMetadata,
-  (client, input) => client.command.clipboard(input as ClipboardCommandOptions),
-);
-
-const tvRemoteCommandDefinition = defineExecutableCommand(
-  tvRemoteCommandMetadata,
-  (client, input) => client.command.tvRemote(input),
-  NAVIGATION_COMMAND_PROJECTIONS['tv-remote'],
 );
 
 const appStateCliSchema = {} as const satisfies CommandSchemaOverride;
@@ -266,8 +215,7 @@ const appStateCommandFacet = defineCommandFacet({
     summary: 'Show the foreground app and activity',
   },
   metadata: appStateCommandMetadata,
-  definition: appStateCommandDefinition,
-  clientMethod: 'appState',
+  run: (client, input) => client.command.appState(input),
   cliSchema: appStateCliSchema,
   cliReader: appStateCliReader,
   daemonWriter: appStateDaemonWriter,
@@ -280,7 +228,7 @@ const backCommandFacet = defineCommandFacet({
     summary: 'Navigate back in the app or system',
   },
   metadata: backCommandMetadata,
-  definition: backCommandDefinition,
+  run: (client, input) => client.command.back(input),
   cliSchema: backCliSchema,
   cliReader: backCliReader,
   daemonWriter: backDaemonWriter,
@@ -293,7 +241,7 @@ const homeCommandFacet = defineCommandFacet({
     summary: 'Go to the device home screen',
   },
   metadata: homeCommandMetadata,
-  definition: homeCommandDefinition,
+  run: (client, input) => client.command.home(input),
   cliSchema: homeCliSchema,
   cliReader: homeCliReader,
   daemonWriter: homeDaemonWriter,
@@ -306,7 +254,7 @@ const orientationCommandFacet = defineCommandFacet({
     summary: 'Set device orientation',
   },
   metadata: orientationCommandMetadata,
-  definition: orientationCommandDefinition,
+  run: (client, input) => client.command.orientation(input),
   cliSchema: orientationCliSchema,
   cliReader: orientationCliReader,
   daemonWriter: orientationDaemonWriter,
@@ -319,7 +267,7 @@ const appSwitcherCommandFacet = defineCommandFacet({
     summary: 'Open the device app switcher',
   },
   metadata: appSwitcherCommandMetadata,
-  definition: appSwitcherCommandDefinition,
+  run: (client, input) => client.command.appSwitcher(input),
   cliSchema: appSwitcherCliSchema,
   cliReader: appSwitcherCliReader,
   daemonWriter: appSwitcherDaemonWriter,
@@ -332,8 +280,7 @@ const keyboardCommandFacet = defineCommandFacet({
     summary: 'Inspect, press, or dismiss the device keyboard',
   },
   metadata: keyboardCommandMetadata,
-  definition: keyboardCommandDefinition,
-  clientMethod: 'keyboard',
+  run: (client, input) => client.command.keyboard(input),
   cliSchema: keyboardCliSchema,
   cliReader: keyboardCliReader,
   daemonWriter: keyboardDaemonWriter,
@@ -346,8 +293,7 @@ const clipboardCommandFacet = defineCommandFacet({
     summary: 'Read or write device clipboard text',
   },
   metadata: clipboardCommandMetadata,
-  definition: clipboardCommandDefinition,
-  clientMethod: 'clipboard',
+  run: (client, input) => client.command.clipboard(input as ClipboardCommandOptions),
   cliSchema: clipboardCliSchema,
   cliReader: clipboardCliReader,
   daemonWriter: clipboardDaemonWriter,
@@ -361,7 +307,7 @@ const tvRemoteCommandFacet = defineCommandFacet({
     cliDetail: 'longpress holds for 500ms by default; --duration-ms overrides the preset.',
   },
   metadata: tvRemoteCommandMetadata,
-  definition: tvRemoteCommandDefinition,
+  run: (client, input) => client.command.tvRemote(input),
   cliSchema: tvRemoteCliSchema,
   cliReader: tvRemoteCliReader,
   daemonWriter: tvRemoteDaemonWriter,
@@ -381,10 +327,6 @@ export const systemCommandFamily = defineCommandFamilyFromFacets({
     tvRemoteCommandFacet,
   ],
 });
-
-export const projectedSystemCommandOutputSchemas = projectCommandOutputSchemas(
-  systemCommandFamily.definitions,
-);
 
 function readBackMode(value: unknown): BackMode | undefined {
   return value === 'in-app' || value === 'system' ? value : undefined;

@@ -5,14 +5,15 @@ import { randomUUID } from 'node:crypto';
 import { AppError, normalizeError } from '@agent-device/kernel/errors';
 import { readNodeHttpRequestBody, timingSafeStringEqual } from '@agent-device/host-kit/transport';
 import {
+  buildDaemonHealthPayload,
   DAEMON_HTTP_BASE_PATH,
   DAEMON_HTTP_NETWORK_ACCESS_HEADER,
   DAEMON_HTTP_PUBLIC_NETWORK_ACCESS,
   DAEMON_HTTP_TENANT_HEADER,
   buildDaemonHttpAuthHeaders,
   buildDaemonHttpUrl,
-} from '../daemon/http-contract.ts';
-import { buildDaemonHealthPayload } from '../daemon/http-health.ts';
+} from '@agent-device/contracts/daemon-http';
+import { readVersion } from '@agent-device/host-kit/version';
 import {
   carriesUnbackedHostPathInstallSource,
   sendHostPathInstallSourceRefused,
@@ -97,7 +98,9 @@ async function sendProxyHealth(res: ServerResponse, options: Required<DaemonProx
   const upstream = await readUpstreamHealth(options);
   res.statusCode = 200;
   res.setHeader('content-type', 'application/json');
-  res.end(JSON.stringify(buildDaemonHealthPayload('agent-device-proxy', { upstream })));
+  res.end(
+    JSON.stringify(buildDaemonHealthPayload('agent-device-proxy', readVersion(), { upstream })),
+  );
 }
 
 async function readUpstreamHealth(options: Required<DaemonProxyOptions>): Promise<unknown> {
@@ -130,11 +133,36 @@ async function forwardProxyRequest(params: {
   const response = await options.fetchImpl(upstreamUrl, {
     method,
     headers,
-    signal: AbortSignal.timeout(options.upstreamTimeoutMs),
+    signal: upstreamRequestSignal(req, res, options.upstreamTimeoutMs),
     ...(body ? { body, duplex: 'half' as const } : {}),
   });
 
   await sendProxyResponse({ req, res, route, response, clientToken: options.clientToken });
+}
+
+/**
+ * The upstream request lives exactly as long as the client keeps waiting for it. The daemon's
+ * HTTP boundary turns a vanished client into request cancellation, so the proxy has to drop its
+ * own upstream socket for a remote client's disconnect to reach in-flight runner work.
+ */
+function upstreamRequestSignal(
+  req: IncomingMessage,
+  res: ServerResponse,
+  timeoutMs: number,
+): AbortSignal {
+  const clientGone = new AbortController();
+  const abortIfResponseIncomplete = () => {
+    if (res.writableFinished || clientGone.signal.aborted) return;
+    clientGone.abort(
+      new AppError(
+        'COMMAND_FAILED',
+        'Proxy client disconnected before the upstream response ended',
+      ),
+    );
+  };
+  req.on('aborted', abortIfResponseIncomplete);
+  res.on('close', abortIfResponseIncomplete);
+  return AbortSignal.any([clientGone.signal, AbortSignal.timeout(timeoutMs)]);
 }
 
 async function sendProxyResponse(params: {
@@ -301,7 +329,25 @@ function isSupportedDaemonRoute(route: string, method: string | undefined): bool
   if (isSupportedUploadRoute(route, method)) return true;
   if (route === '/artifacts' || route === '/artifacts/') return method === 'GET';
   if (route.startsWith('/artifacts/')) return method === 'GET';
+  if (isRequestDiagnosticsRoute(route)) return method === 'GET';
   return false;
+}
+
+/**
+ * `GET /sessions/<session>/requests/<requestId>/diagnostics` (#1801): the record a failed
+ * command names. A remote client localizes its `logPath` from it, so a client behind the
+ * proxy keeps exactly the failure envelope a client on the daemon host gets.
+ */
+function isRequestDiagnosticsRoute(route: string): boolean {
+  const segments = route.split('/');
+  return (
+    segments.length === 6 &&
+    segments[1] === 'sessions' &&
+    segments[3] === 'requests' &&
+    segments[5] === 'diagnostics' &&
+    segments[2] !== '' &&
+    segments[4] !== ''
+  );
 }
 
 function isSupportedUploadRoute(route: string, method: string | undefined): boolean {
@@ -436,6 +482,7 @@ function sendUnauthorized(res: ServerResponse, route: string, rpcId: unknown): v
 }
 
 function sendProxyError(res: ServerResponse, error: unknown): void {
+  if (res.destroyed) return;
   if (res.headersSent) {
     res.destroy(error instanceof Error ? error : undefined);
     return;

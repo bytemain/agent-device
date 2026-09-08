@@ -72,7 +72,7 @@ const MUTATIONS: readonly WireMutation[] = [
   },
   {
     breakClass: 'response parsing: the client narrows what a daemon may return',
-    file: 'src/daemon/client/daemon-client-rpc.ts',
+    file: 'src/daemon-client/daemon-client-rpc.ts',
     name: 'parseDaemonHttpResponseBody',
     from: 'error?: { message?: string; data?: Record<string, unknown> }',
     to: 'error?: { message: string }',
@@ -86,7 +86,7 @@ const MUTATIONS: readonly WireMutation[] = [
   },
   {
     breakClass: 'auth projection: the client stops sending the bearer form',
-    file: 'src/daemon/http-contract.ts',
+    file: 'packages/contracts/src/daemon-http.ts',
     name: 'buildDaemonHttpAuthHeaders',
     from: 'authorization: `Bearer ${normalizedToken}`,',
     to: '',
@@ -145,21 +145,21 @@ const MUTATIONS: readonly WireMutation[] = [
   // why claiming "both sides" required these to be listed and proved.
   {
     breakClass: 'health consumer: the client stops reading the advertised protocol version',
-    file: 'src/daemon/client/daemon-client-transport.ts',
-    name: 'readHealthPayload',
+    file: 'src/daemon-client/daemon-client-transport.ts',
+    name: 'readHealthLink',
     from: "typeof parsed.rpcProtocolVersion === 'number' ? parsed.rpcProtocolVersion : undefined",
     to: 'undefined',
   },
   {
     breakClass: 'health consumer: the mismatch refusal ADR 0006 built is weakened',
-    file: 'src/daemon/client/daemon-client-transport.ts',
+    file: 'src/daemon-client/daemon-client-transport.ts',
     name: 'readRemoteDaemonHealth',
-    from: 'health.rpcProtocolVersion !== DAEMON_RPC_PROTOCOL_VERSION',
+    from: 'link.rpcProtocolVersion !== DAEMON_RPC_PROTOCOL_VERSION',
     to: 'false',
   },
   {
     breakClass: 'health consumer: the parsed health shape drops a released field',
-    file: 'src/daemon/client/daemon-client-transport.ts',
+    file: 'src/daemon-client/daemon-client-transport.ts',
     name: 'RemoteDaemonHealth',
     from: 'rpcProtocolVersion?: number;',
     to: '',
@@ -201,8 +201,8 @@ const MUTATIONS: readonly WireMutation[] = [
   },
   {
     breakClass: 'artifact consumer: the download request drops its tenant header',
-    file: 'src/remote/daemon-artifacts.ts',
-    name: 'downloadRemoteArtifact',
+    file: 'src/remote/artifact-download.ts',
+    name: 'downloadRemoteArtifactFromUrl',
     from: '...buildDaemonHttpTenantHeaders(params.requestScope?.tenantId),',
     to: '',
   },

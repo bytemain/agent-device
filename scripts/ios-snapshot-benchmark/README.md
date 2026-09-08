@@ -17,7 +17,7 @@ The app build must succeed on the host. If signing, Xcode, XCTest, simulator, ru
 
 ## Local state matrix
 
-Replace `SIMULATOR_UDID` with the dedicated simulator UDID. The default screen set is quiet, list, nested-scroll, alert, system-surface, and xctest-stress. Cold cells require at least 10 samples; warm and relaunch cells require at least 20.
+Replace `SIMULATOR_UDID` with the dedicated simulator UDID. The default screen set is quiet, list, nested-scroll, alert, system-surface, and xctest-stress. Cold and first-interaction cells require at least 10 samples; warm and relaunch cells require at least 20.
 
 ```sh
 pnpm bench:ios-snapshot -- \
@@ -35,6 +35,9 @@ The cells mean:
 - `cold`: simulator booted, daemon stopped, and app terminated before each sample.
 - `warm`: app, daemon, runner, and target are prepared once; each sample is a fresh CLI snapshot.
 - `relaunch`: the same prepared tooling is retained while each sample launches a new app process.
+- `first-interaction`: daemon stopped and app terminated before each sample, like `cold`; the
+  sample then opens the app (untimed) and times the first runner-dependent press that follows,
+  so an open that defers runner readiness shows its cost here rather than in `cold`.
 
 Every sample keeps daemon duration and fresh-process wall time separately, the first-tree status, response bytes, target generation, and typed failure details. Each raw result also records the typed host model, model identifier, CPU, and core count needed to compare performance baselines. The raw JSON is validated against `raw-result.schema.v1.json`; the adjacent Markdown is a human-readable summary.
 
@@ -60,20 +63,26 @@ pnpm bench:ios-snapshot -- \
 
 The conditioner is semantics-preserving at zero packet loss. Non-zero loss is an explicit failure experiment, not a successful baseline.
 
-The complete exact-head corpus from `bench-golden-v2` (iPhone 17 Pro, iOS 27.0) is retained under
-[`evidence/`](./evidence/) from revision `71fb2483f30d90e615e949601c836aeebbf450c5`:
+The complete exact-head corpus from `bench-golden-v2` (iPhone 17 Pro, iOS 27.0) measured at
+revision `71fb2483f30d90e615e949601c836aeebbf450c5` is published on the orphan branch
+`evidence/ios-snapshot`, pinned to the immutable tag `evidence/ios-snapshot/71fb2483f`
+(commit `2d4baf461aa8897d49c6d4683cd16d8f43588ae8`); [`evidence/README.md`](./evidence/README.md)
+records each file's sha256 and the fetch recipe against that tag and commit. The Markdown
+summaries stay under [`evidence/`](./evidence/):
 
-- [`ios-snapshot-cold-local-71fb2483f.json`](./evidence/ios-snapshot-cold-local-71fb2483f.json)
+- [`ios-snapshot-cold-local-71fb2483f`](./evidence/ios-snapshot-cold-local-71fb2483f.md)
   covers cold-cold and cold lifecycle cells across all six screens with 10 samples per cell.
-- [`ios-snapshot-warm-relaunch-local-71fb2483f.json`](./evidence/ios-snapshot-warm-relaunch-local-71fb2483f.json)
+- [`ios-snapshot-warm-relaunch-local-71fb2483f`](./evidence/ios-snapshot-warm-relaunch-local-71fb2483f.md)
   covers warm and relaunch lifecycle cells across all six screens with 20 samples per cell and
   includes package-size measurements.
-- [`ios-snapshot-proxy-71fb2483f.json`](./evidence/ios-snapshot-proxy-71fb2483f.json) covers
+- [`ios-snapshot-proxy-71fb2483f`](./evidence/ios-snapshot-proxy-71fb2483f.md) covers
   persistent-client and fresh-process CLI cells at RTT 0, 20, and 80 ms with 20 samples per cell.
 
-Each JSON file is the schema-validated raw result from the commit named in its `revision` field;
-each has an adjacent Markdown summary. Superseded pre-admission captures are not part of the
-published corpus.
+Each JSON file is the schema-validated raw result from the commit named in its `revision` field.
+`pnpm bench:ios-snapshot:evidence -- [--evidence-dir <dir>]` re-validates a fetched or freshly
+written directory against the schema and the published hashes. `evidence-fixture.v1.json` is a
+two-cell excerpt of the warm/relaunch result that keeps the reader tested without the corpus.
+Superseded pre-admission captures are not part of the published corpus.
 
 ## Package-size evidence
 

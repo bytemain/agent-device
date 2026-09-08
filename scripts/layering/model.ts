@@ -38,6 +38,7 @@ export type BackEdgeMap = Record<string, string[]>;
 const TARGET_DAG_RANK = new Map([
   ['ad-replay', 1],
   ['ad-script', 1],
+  ['command-registry', 1],
   ['contracts', 1],
   ['maestro', 1],
   ['recording', 1],
@@ -45,6 +46,7 @@ const TARGET_DAG_RANK = new Map([
   ['request', 1],
   ['screenshot-diff', 1],
   ['selectors', 1],
+  ['session-journal', 1],
   ['snapshot', 1],
   ['core', 2],
   ['cli-schema', 3],
@@ -91,6 +93,7 @@ export const UNRANKED_ZONES: ReadonlySet<string> = new Set([
   'kernel',
   'host-kit',
   'capture-kit',
+  'managed-allocation',
   'provision-kit',
   ...PLATFORMS.map((family) => `platform-${family}`),
   'provider-webdriver',
@@ -264,7 +267,8 @@ export function topFolder(file: string): string {
 }
 
 export function targetDagZone(file: string): string {
-  if (file.startsWith('src/daemon/client/')) return 'daemon-client';
+  // #2342 relocated the daemon client to its own `src/daemon-client/` folder, so the
+  // client zone now falls out of the folder itself; `src/daemon/` is server-only.
   if (file.startsWith('src/daemon/')) return 'daemon-server';
   return topFolder(file);
 }
@@ -325,14 +329,33 @@ function resolveTargetFile(
   return candidates.find((candidate) => sourceFiles.has(candidate)) ?? null;
 }
 
+export type ImportParser = (source: string) => ImportEdge[];
+
+/**
+ * `parseImports` memoized by source text. A ratchet parses two trees that share almost every
+ * file, so the second tree costs a parse only where its text differs from the first.
+ */
+export function memoizedImportParser(): ImportParser {
+  const edgesBySource = new Map<string, ImportEdge[]>();
+  return (source) => {
+    let edges = edgesBySource.get(source);
+    if (!edges) {
+      edges = parseImports(source);
+      edgesBySource.set(source, edges);
+    }
+    return edges;
+  };
+}
+
 export function resolveImportEdges(
   sources: ReadonlyMap<string, string>,
   workspaceExportTargets?: ReadonlyMap<string, string>,
+  parse: ImportParser = parseImports,
 ): ResolvedImportEdge[] {
   const sourceFiles = new Set(sources.keys());
   const edges: ResolvedImportEdge[] = [];
   for (const [file, source] of sources) {
-    for (const edge of parseImports(source)) {
+    for (const edge of parse(source)) {
       const target = resolveTargetFile(file, edge.spec, sourceFiles, workspaceExportTargets);
       if (!target) continue;
       edges.push({
@@ -452,10 +475,32 @@ export function backEdgePair(edge: ResolvedImportEdge): string | null {
 // a type-only import costs nothing at runtime and does not affect cold start — but a
 // type-only edge still says "this zone is declared in terms of that one", and that IS a
 // boundary claim. Ranking them found 61 inversions the gate had never seen, which is why
-// they are ratcheted rather than merely reported: see `TYPE_INVERSION_BASELINE`.
+// they are ratcheted rather than merely reported against the merge-base with origin/main: see
+// `typeInversionCounts` and scripts/layering/type-inversion-ratchet.ts.
 export function typeInversionPair(edge: ResolvedImportEdge): string | null {
   if (edge.dynamic || !edge.typeOnly) return null;
   return spineInversionPair(edge);
+}
+
+/**
+ * R6's measurement: distinct type-only spine inversions per zone pair, keyed `from -> to` and
+ * sorted by pair. The ratchet compares this record across two trees, so it is a pure function of
+ * the edge set rather than a count taken inside the rule.
+ */
+export function typeInversionCounts(
+  edges: readonly ResolvedImportEdge[],
+): Readonly<Record<string, number>> {
+  const seen = new Set<string>();
+  const counts = new Map<string, number>();
+  for (const edge of edges) {
+    const pair = typeInversionPair(edge);
+    if (!pair) continue;
+    const identity = `${edge.file} -> ${edge.target}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    counts.set(pair, (counts.get(pair) ?? 0) + 1);
+  }
+  return Object.fromEntries([...counts].sort(([left], [right]) => left.localeCompare(right)));
 }
 
 export function collectBackEdges(edges: readonly ResolvedImportEdge[]): BackEdgeMap {

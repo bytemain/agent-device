@@ -1,13 +1,13 @@
 import type { SessionAction } from '@agent-device/contracts/session';
 import type { CommandFlags } from '@agent-device/contracts/command';
-import type { DaemonInvokeFn, DaemonRequest, DaemonResponse } from '../../types.ts';
+import type { DaemonInvokeFn, DaemonRequest, DaemonResponse } from '../../daemon-request.ts';
 import { mergeParentFlags } from '../../../core/batch.ts';
 import { AppError, normalizeError } from '@agent-device/kernel/errors';
 import {
   gesturePayloadFromPositionals,
   swipePayloadFromPositionals,
 } from '@agent-device/contracts/gesture-normalization';
-import { buildDisplayPositionals } from '../../session-event-action.ts';
+import { buildDisplayPositionals } from '@agent-device/session-journal/session-event-action';
 import { appendReplayTraceEvent } from './session-replay-trace.ts';
 import { inferFillText } from '../../action-utils.ts';
 import { readRecordedInputVariableName } from '@agent-device/ad-script';

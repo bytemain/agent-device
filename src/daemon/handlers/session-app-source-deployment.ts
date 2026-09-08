@@ -15,8 +15,9 @@ import { expireRefFrame } from '../ref-frame.ts';
 import { resolveInstallSource } from '../install-source-resolution.ts';
 import type { BindDeviceRuntime, InspectDeviceRuntimeFacts } from '../request-runtime-binding.ts';
 import { SessionStore } from '../session-store.ts';
-import type { DaemonRequest, DaemonResponse, SessionState } from '../types.ts';
-import { resolveInstallFromSourceResultTarget } from '../result-serialization.ts';
+import type { DaemonRequest, DaemonResponse } from '../daemon-request.ts';
+import type { SessionState } from '../session-state.ts';
+import { resolveInstallFromSourceResultTarget } from '../../core/deploy-result-target.ts';
 import { withSuccessText } from '@agent-device/kernel/success-text';
 import { recordSessionAction } from '../session-action-recorder.ts';
 import { resolveCommandDevice } from '../session-device-resolution.ts';
@@ -144,7 +145,7 @@ async function resolveInstallDevice(
   if (session) {
     return session.device;
   }
-  return await resolveCommandDevice({ session, flags, ensureReady: false });
+  return await resolveCommandDevice({ session, flags });
 }
 
 function normalizePlatform(

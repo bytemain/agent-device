@@ -33,6 +33,9 @@ test('producer, consumers, upload, and concurrency use the canonical platform-sc
     (step) => step.name === 'Build the Android Release APK (fallback)',
   );
   const fingerprintStep = workflow.jobs.fingerprint.steps.find((step) => step.id === 'fingerprint');
+  const producerAndroidBuildStep = workflow.jobs.release.steps.find(
+    (step) => step.name === 'Build the Android Release apk',
+  );
   const uploadStep = workflow.jobs.release.steps.find((step) =>
     step.uses?.startsWith('actions/upload-artifact@'),
   );
@@ -51,6 +54,9 @@ test('producer, consumers, upload, and concurrency use the canonical platform-sc
   assert.match(androidFallbackStep.if, /inputs\.platform == 'android'/);
   assert.match(androidFallbackStep.run, /expo prebuild --platform android --no-install/);
   assert.match(androidFallbackStep.run, /:app:assembleRelease/);
+  assert.match(androidFallbackStep.run, /org\.gradle\.jvmargs=-Xmx4g/);
+  assert.match(producerAndroidBuildStep.run, /org\.gradle\.jvmargs=-Xmx4g/);
+  assert.match(fetchArtifact, /producer-state "\$REPOSITORY" "\$EXPECTED_HEAD_SHA" "\$PLATFORM"/);
   assert.match(
     fingerprintStep.run,
     /ARTIFACT_NAME_RESOLVER="\.github\/actions\/setup-fixture-app\/resolve-artifact-name\.sh"/,
@@ -163,7 +169,7 @@ test('Android smoke consumes the restored APK through catalog fixture E2E', (t) 
       .includes(replayEvidence.invocation),
     `missing declared Android replay invocation: ${replayEvidence.invocation}`,
   );
-  assert.equal(restoreStep.with['wait-for-artifact-seconds'], '600');
+  assert.equal(restoreStep.with['wait-for-artifact-seconds'], '1800');
   assert.match(sourceStep.run, /steps\.fixture-app\.outputs\.source/);
   assert.match(assertion, /metadata\.backend !== 'android-helper'/);
   assert.match(assertion, /metadata\.helperVersion !== packageVersion/);
@@ -642,28 +648,110 @@ test('default-branch producer artifacts remain reusable across native-equivalent
 
 test('producer state is derived only from the trusted exact-head workflow run', () => {
   assert.equal(
-    classifyProducerState([], { expectedHeadSha: 'current-head', repository }),
+    classifyProducerState([], [], {
+      expectedHeadSha: 'current-head',
+      repository,
+      platform: 'android',
+    }),
     'absent',
   );
   assert.equal(
-    classifyProducerState([{ ...trustedRun, status: 'queued' }], {
+    classifyProducerState(
+      [trustedRun],
+      [{ conclusion: null, name: 'Android Release', status: 'in_progress' }],
+      { expectedHeadSha: 'current-head', repository, platform: 'android' },
+    ),
+    'in_progress',
+  );
+  assert.equal(
+    classifyProducerState(
+      [trustedRun],
+      [{ conclusion: 'failure', name: 'Android Release', status: 'completed' }],
+      { expectedHeadSha: 'current-head', repository, platform: 'android' },
+    ),
+    'failed',
+  );
+  assert.equal(
+    classifyProducerState(
+      [trustedRun],
+      [{ conclusion: 'success', name: 'Android Release', status: 'completed' }],
+      { expectedHeadSha: 'current-head', repository, platform: 'android' },
+    ),
+    'success',
+  );
+});
+
+// #2251/run 33550746596: the run's own status flickers to `queued` in the gap
+// between its fingerprint job finishing and its platform job starting. A
+// classifier keyed on run.status (the pre-fix behavior) mistakes that gap for
+// "give up"; keying on the platform job's own status does not.
+test('a run that flickers to queued while its platform job is already running classifies as in_progress, not queued', () => {
+  const flickeringRun = { ...trustedRun, status: 'queued' };
+  const runningAndroidJob = { conclusion: null, name: 'Android Release', status: 'in_progress' };
+  assert.equal(
+    classifyProducerState([flickeringRun], [runningAndroidJob], {
       expectedHeadSha: 'current-head',
       repository,
+      platform: 'android',
+    }),
+    'in_progress',
+  );
+});
+
+test('a platform job that has not been scheduled yet classifies by the run instead of going absent', () => {
+  const fingerprintJob = {
+    conclusion: null,
+    name: 'Resolve native fingerprint',
+    status: 'completed',
+  };
+  assert.equal(
+    classifyProducerState([trustedRun], [fingerprintJob], {
+      expectedHeadSha: 'current-head',
+      repository,
+      platform: 'android',
+    }),
+    'queued',
+  );
+  const completedRun = { ...trustedRun, conclusion: 'success', status: 'completed' };
+  assert.equal(
+    classifyProducerState([completedRun], [fingerprintJob], {
+      expectedHeadSha: 'current-head',
+      repository,
+      platform: 'android',
+    }),
+    'failed',
+  );
+});
+
+test('the iOS platform job is looked up by its own matrix name, independent of the Android job', () => {
+  const iosJob = { conclusion: null, name: 'iOS Release', status: 'queued' };
+  const androidJob = { conclusion: 'success', name: 'Android Release', status: 'completed' };
+  assert.equal(
+    classifyProducerState([trustedRun], [iosJob, androidJob], {
+      expectedHeadSha: 'current-head',
+      repository,
+      platform: 'ios',
     }),
     'queued',
   );
   assert.equal(
-    classifyProducerState([{ ...trustedRun, conclusion: 'failure', status: 'completed' }], {
+    classifyProducerState([trustedRun], [iosJob, androidJob], {
       expectedHeadSha: 'current-head',
       repository,
-    }),
-    'failed',
-  );
-  assert.equal(
-    classifyProducerState([{ ...trustedRun, conclusion: 'success', status: 'completed' }], {
-      expectedHeadSha: 'current-head',
-      repository,
+      platform: 'android',
     }),
     'success',
+  );
+});
+
+test('an unrecognized fixture platform is rejected rather than silently matching no job', () => {
+  assert.throws(
+    () =>
+      classifyProducerState([trustedRun], [], {
+        expectedHeadSha: 'current-head',
+        repository,
+        platform: 'windows',
+      }),
+    /unknown fixture platform: windows/,
   );
 });

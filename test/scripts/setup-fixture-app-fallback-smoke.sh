@@ -151,13 +151,50 @@ run_terminal_producer_case() {
 }
 
 for PLATFORM in ios android; do
-  run_terminal_producer_case queued 'producer is queued' "$PLATFORM"
   run_terminal_producer_case failed 'producer failed' "$PLATFORM"
   run_terminal_producer_case absent 'No fixture producer appeared' "$PLATFORM"
 done
 
 if [ "$FAIL" -eq 0 ]; then
-  echo "PASS: queued, failed, and absent producers exit the wait path early."
+  echo "PASS: failed and absent producers exit the wait path early."
+fi
+
+run_queued_keeps_waiting() {
+  PLATFORM="$1"
+  TEST_PRODUCER_STATE=queued
+  export TEST_PRODUCER_STATE
+  TEST_WAIT_SECONDS=2
+  export TEST_WAIT_SECONDS
+  : > "$GITHUB_OUTPUT"
+  if ! (
+    cd "$WORKSPACE"
+    PATH="$WORK/bin:$PATH" bash "$ACTION_PATH/fetch-artifact.sh" \
+      "$PLATFORM" "$WORK/fixture" "$TEST_WAIT_SECONDS" octo/repo current-head "$ACTION_PATH"
+  ) > "$WORK/log-queued-waits-$PLATFORM" 2>&1; then
+    echo "FAIL: $PLATFORM queued producer state did not fall back cleanly after its wait budget." >&2
+    FAIL=1
+    return
+  fi
+  if ! grep -q '^source=build$' "$GITHUB_OUTPUT"; then
+    echo "FAIL: $PLATFORM queued producer state did not select inline build after its wait budget." >&2
+    FAIL=1
+  fi
+  if grep -qi 'building inline instead of waiting for a native runner' "$WORK/log-queued-waits-$PLATFORM"; then
+    echo "FAIL: $PLATFORM queued producer state bailed instead of waiting out its budget." >&2
+    FAIL=1
+  fi
+  if ! grep -q 'not in the cache after the configured wait' "$WORK/log-queued-waits-$PLATFORM"; then
+    echo "FAIL: $PLATFORM queued producer state did not exhaust its wait budget before falling back." >&2
+    FAIL=1
+  fi
+}
+
+for PLATFORM in ios android; do
+  run_queued_keeps_waiting "$PLATFORM"
+done
+
+if [ "$FAIL" -eq 0 ]; then
+  echo "PASS: a queued producer keeps waiting instead of bailing immediately."
 fi
 
 exit "$FAIL"

@@ -1,5 +1,5 @@
 import { SELECTOR_KEY_NAMES } from '@agent-device/selectors';
-import { listCliCommandNames } from '../command-catalog.ts';
+import { listCliCommandNames } from '@agent-device/command-registry/catalog';
 
 /**
  * The root help is the no-skill agent's decision card, not the command reference.
@@ -25,7 +25,7 @@ Loop:
   scroll <direction|top|bottom> [amount] --settle; back --settle
     acts, waits for quiet, and prints the UI diff. Continue from that diff.
     Run snapshot -i only when the diff lacks the next target or did not settle.
-  Verify a named expectation with the diff, wait text "...", wait <selector>,
+  Verify a named expectation with the diff, wait text "...", wait <selector>, wait absent <selector>,
     is, get, or find. A bare screenshot is not verification.
   End with: agent-device close
 

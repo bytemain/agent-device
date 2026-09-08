@@ -2,16 +2,9 @@ import { defineConfig } from 'vitest/config';
 import { resolveVitestMaxWorkers } from './scripts/lib/vitest-concurrency.ts';
 import slowTestGateReporter from './scripts/vitest-slow-test-reporter.ts';
 
-// Files that spawn a real subprocess per case. They used to run one at a time in
-// their own serialized `subprocess-stub` project so broad file parallelism couldn't
-// starve a spawn past its internal budget and turn it into a generic timeout.
-// #1823 is now running that project's own kill criterion: un-serialized here in
-// `unit-core`'s default forks pool, watched for 20 consecutive CI runs with no
-// timeout-shaped failure. Revert (restore the project, restore this list to
-// unit-core's exclude) the moment one appears. Still excluded from the mutation
-// lane via SERIALIZED_TESTS below regardless of this experiment's outcome —
-// thousands of mutant reruns times a real spawn per case is timeout noise either way.
-const SUBPROCESS_STUB_TESTS: readonly string[] = [
+// A real per-case spawn is timeout noise under thousands of mutant reruns, so the
+// mutation lane excludes these tests even though the unit lane runs them normally.
+const MUTATION_EXCLUDED_SUBPROCESS_TESTS: readonly string[] = [
   // Stubs npx plus the package managers and spawns a real Metro dev server per case.
   'src/__tests__/client-metro.test.ts',
   // The SUT is the subprocess watchdog: a node subprocess per case, one hangs on purpose (#1414).
@@ -56,13 +49,14 @@ const FUZZ_WORKER_TESTS: readonly string[] = [
   'scripts/fuzz/corpus-replay.test.ts',
 ];
 /**
- * Every test the mutation lane must not collect: a real per-case subprocess spawn is
- * timeout noise under thousands of mutant reruns, independent of whether Vitest also
- * serializes it — `fuzz-worker` still does; `subprocess-stub`'s former members no
- * longer do (#1823). The two lists above stay module-local: this union is the whole
- * cross-file surface, and the mutation lane wants exactly it.
+ * Every test the mutation lane must not collect. The two lists above stay
+ * module-local: this union is the whole cross-file surface, and the mutation lane
+ * wants exactly it.
  */
-export const SERIALIZED_TESTS: readonly string[] = [...SUBPROCESS_STUB_TESTS, ...FUZZ_WORKER_TESTS];
+export const MUTATION_EXCLUDED_TESTS: readonly string[] = [
+  ...MUTATION_EXCLUDED_SUBPROCESS_TESTS,
+  ...FUZZ_WORKER_TESTS,
+];
 
 // Imported by vitest.mutation.config.ts so the two lanes cannot drift: a guard
 // added here must reach the Stryker sandbox too.
@@ -105,9 +99,8 @@ export default defineConfig({
           include: [
             'src/**/*.test.ts',
             'packages/*/src/**/*.test.ts',
-            // The subprocess watchdog self-check (#1823): spawns a real node subprocess per
-            // case, one hangs on purpose (#1414). Formerly a `subprocess-stub` member; see
-            // SUBPROCESS_STUB_TESTS above for the kill-criterion experiment this rides.
+            // The subprocess watchdog self-check: spawns a real node subprocess per case,
+            // and one hangs on purpose (#1414).
             'scripts/fuzz/harness.test.ts',
             // The validation fuzz generators' expectation gates (#1781 B2): in-process, no
             // subprocess or worker, so they ride the fast lane unlike their serialized siblings.
@@ -154,7 +147,11 @@ export default defineConfig({
             // Publish preparation spawns only fixture-owned scripts and proves both Android
             // helper families are rebuilt through the shared release/size-report owner.
             'scripts/__tests__/prepare-publish-assets.test.ts',
+            // Parse-only guard on the checked-in registry entry: the npm package must declare
+            // the fixed mcp subcommand, or registry-format launchers run the bare CLI.
+            'scripts/__tests__/mcp-metadata.test.ts',
             'scripts/ios-snapshot-benchmark/*.test.ts',
+            'scripts/ios-ax-bridge-spike/*.test.ts',
             // Parses CI configuration only, so this action guard needs no device or subprocess lane.
             'test/ci/upload-agent-device-artifacts.test.ts',
             'test/ci/upload-artifact-hidden-paths.test.ts',
@@ -198,8 +195,7 @@ export default defineConfig({
       },
       {
         test: {
-          // Serialized for the same contention reason `subprocess-stub` used to be (#1823):
-          // the per-case watchdog budget is real wall clock. The project exists so the
+          // Serialized because the per-case watchdog budget is real wall clock. The project exists so the
           // coverage run can leave it out (see the comment above), not to run it differently.
           name: 'fuzz-worker',
           include: [...FUZZ_WORKER_TESTS],
@@ -242,6 +238,7 @@ export default defineConfig({
       exclude: [
         'src/**/*.test.ts',
         'src/**/__tests__/**',
+        '**/*.fixtures.ts',
         'src/**/*-types.ts',
         'src/**/types.ts',
         'src/sdk/**',

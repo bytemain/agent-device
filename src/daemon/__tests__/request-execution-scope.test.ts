@@ -19,8 +19,8 @@ import {
   createRequestExecutionScope,
   prepareLockedRequestScope,
 } from '../request-execution-scope.ts';
-import { resolveSessionRequestLogPath } from '../session-store.ts';
-import type { DaemonRequest } from '../types.ts';
+import { resolveSessionRequestLogPath } from '../session-artifact-paths.ts';
+import type { DaemonRequest } from '../daemon-request.ts';
 import { mkdtempForTestSync } from '../../__tests__/test-utils/tmp-dir.ts';
 import { makeTestScreenRecordingResource } from '../../__tests__/test-utils/screen-recording-live-handle.ts';
 import { handleSessionCloseCommands } from '../session-lifecycle/index.ts';

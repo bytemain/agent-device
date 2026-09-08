@@ -107,6 +107,13 @@ export type RawSnapshotNode = {
   enabled?: boolean;
   selected?: boolean;
   focused?: boolean;
+  /** Native accessibility facts; absent means unavailable, not false. */
+  editable?: boolean;
+  password?: boolean;
+  hintShowing?: boolean;
+  /** Accessibility selection offsets, never a character count or proof of value equality. */
+  selectionStart?: number;
+  selectionEnd?: number;
   visibleToUser?: boolean;
   hittable?: boolean;
   depth?: number;
@@ -120,6 +127,15 @@ export type RawSnapshotNode = {
   hiddenContentBelow?: boolean;
   interactionBlocked?: 'covered';
   presentationHints?: string[];
+  /**
+   * Backend-minted ref for this node, when the capture backend already assigns a
+   * stable, actionable ref (e.g. the web/agent-browser backend resolves actions
+   * against its own `@eN` refs). `attachRefs` preserves this instead of re-minting
+   * a dense positional ref, so the ref an agent sees in the snapshot is the same
+   * ref the backend can resolve on the next action. Absent for backends that do
+   * not mint refs — those fall back to dense `e${index}` numbering.
+   */
+  ref?: string;
   /**
    * Accessibility custom actions the element exposes (iOS
    * `UIAccessibilityCustomAction`, React Native `accessibilityActions`). Merged
@@ -162,7 +178,10 @@ export type SnapshotNode = RawSnapshotNode & {
  * snapshot-provenance.test.ts).
  */
 export type SnapshotProvenance =
-  | { backend: 'xctest'; producer: 'apple-runner' | 'appium-source' | 'limrun-ios-tree' }
+  | {
+      backend: 'xctest';
+      producer: 'apple-runner' | 'simulator-ax-bridge' | 'appium-source' | 'limrun-ios-tree';
+    }
   | { backend: 'android'; producer: 'android-uiautomator' | 'appium-source' }
   | { backend: 'harmonyos-arkui'; producer: 'harmonyos-uitest' }
   | { backend: 'macos-helper'; producer: 'macos-helper' }
@@ -238,6 +257,8 @@ export type SnapshotState = {
   snapshotQuality?: SnapshotQualityVerdict;
   comparisonSafe?: boolean;
   presentationKey?: string;
+  /** Opaque equality key for iOS acquisition and presentation lineage. */
+  comparisonKey?: string;
   /**
    * Android: the capture is an occluding system surface (notification shade, quick settings)
    * rather than app content. Consumers that surface this tree to the agent must disclose the
@@ -273,8 +294,15 @@ export type ScreenshotOverlayRef = {
   center: Point;
 };
 
+/**
+ * Assign a display ref to every node. A node that already carries a backend-minted
+ * `ref` keeps it (see `RawSnapshotNode.ref`) — the web/agent-browser backend resolves
+ * actions against its own refs, so re-minting a dense positional ref here would make
+ * the snapshot show one ref while actions act on a different element. Backends that do
+ * not mint refs get dense `e${index}` numbering, matching the historical behavior.
+ */
 export function attachRefs(nodes: RawSnapshotNode[]): SnapshotNode[] {
-  return nodes.map((node, idx) => ({ ...node, ref: `e${idx + 1}` }));
+  return nodes.map((node, idx) => ({ ...node, ref: node.ref ?? `e${idx + 1}` }));
 }
 
 /**

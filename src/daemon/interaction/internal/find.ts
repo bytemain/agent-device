@@ -9,7 +9,8 @@ import { runNodePipelineStages } from '../../../core/selector-pipeline.ts';
 import { SELECTOR_PIPELINE_POLICIES } from '../../../core/selector-pipeline-policy.ts';
 import { centerOfRect, type SnapshotState } from '@agent-device/kernel/snapshot';
 import { expireRefFrame } from '../../ref-frame.ts';
-import type { DaemonInvokeFn, DaemonRequest, DaemonResponse, SessionState } from '../../types.ts';
+import type { DaemonInvokeFn, DaemonRequest, DaemonResponse } from '../../daemon-request.ts';
+import type { SessionState } from '../../session-state.ts';
 import { SessionStore } from '../../session-store.ts';
 import { contextFromFlags } from '../../context.ts';
 import { readCommandMessage, successText } from '@agent-device/kernel/success-text';
@@ -23,7 +24,10 @@ import { executeBoundTypeText } from '../../type-text-runtime.ts';
 import { dispatchFindReadOnlyViaRuntime } from '../../selector-runtime.ts';
 import { admitAndBindSnapshotCapture } from '../../snapshot-runtime-binding.ts';
 import type { FocusPointInput } from '@agent-device/contracts/focus-runtime';
-import { resolveSelectorCaptureRuntimePlan } from '@agent-device/contracts/platform-runtime-operations';
+import {
+  findRuntimeIntent,
+  resolveSelectorCaptureRuntimePlan,
+} from '@agent-device/contracts/platform-runtime-operations';
 import type { TypeTextRuntimeOperations } from '@agent-device/contracts/type-text-runtime';
 import type { FindRouteInput } from './types.ts';
 import { createFindTargetCapture, sparseFindSnapshotResponse } from './find-target-capture.ts';
@@ -106,7 +110,7 @@ export async function handleFindCommands(params: FindRouteInput): Promise<Daemon
     session,
     plan: resolveSelectorCaptureRuntimePlan({
       hasActiveApp: session.appBundleId !== undefined,
-      intent: action === 'focus' ? 'find-focus' : action === 'type' ? 'find-type' : 'capture-only',
+      intent: findRuntimeIntent(action),
     }),
     inspectFacts: params.inspectFacts,
     bindDevice: params.bindDevice,

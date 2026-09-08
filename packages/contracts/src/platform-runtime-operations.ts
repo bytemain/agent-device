@@ -1,14 +1,11 @@
 import type { AppLogRuntimeHost, AppLogRuntimeOperations } from './app-log-runtime.ts';
-import type {
-  AppInventoryRuntimeHost,
-  AppInventoryRuntimeOperations,
-} from './app-inventory-runtime.ts';
+import type { AppInventoryRuntimeOperations } from './app-inventory-runtime.ts';
 import type {
   AndroidAppDeploymentExecutor,
   AppDeploymentRuntimeOperations,
   AppleAppDeploymentExecutor,
 } from './app-deployment-runtime.ts';
-import type { AppStateRuntimeHost, AppStateRuntimeOperations } from './app-state-runtime.ts';
+import type { AppStateRuntimeOperations } from './app-state-runtime.ts';
 import type { NetworkRuntimeHost, NetworkRuntimeOperations } from './network-runtime.ts';
 import type { ScreenRecordingRuntimeHost } from './screen-recording-runtime-host.ts';
 import type { ScreenRecordingRuntimeOperations } from './screen-recording-runtime.ts';
@@ -488,6 +485,18 @@ const selectorUsesByIntent = Object.freeze({
 export type SelectorCaptureRuntimeIntent = keyof typeof selectorUsesByIntent;
 
 /**
+ * The one action-selected plan `find` binds (ADR 0019 §9): the target capture always, plus the
+ * focus leg for `find focus` and the focus+type legs for `find type`. Every other action resolves
+ * its target from the capture and delegates or reads; the handler and plan-time consumers share
+ * this map so they cannot drift.
+ */
+export function findRuntimeIntent(
+  action: string,
+): Extract<SelectorCaptureRuntimeIntent, 'capture-only' | 'find-focus' | 'find-type'> {
+  return action === 'focus' ? 'find-focus' : action === 'type' ? 'find-type' : 'capture-only';
+}
+
+/**
  * Same two `kind`s the snapshot plan uses for this split — deliberately, so capture-only,
  * element-text, and wait-observation callers share one admit-then-bind path.
  */
@@ -602,35 +611,46 @@ export function resolveSnapshotRuntimePlan(input: {
 
 const captureScreenshotUse = defineUse({ required: ['captureScreenshot'] });
 /**
- * `--overlay-refs` annotates the capture with the refs of a snapshot taken in the same request, so
- * the snapshot is part of what the command requires — not something to discover after the PNG is
+ * Screenshot post-processing that resolves a snapshot taken in the same request — `--overlay-refs`
+ * annotates the capture with snapshot refs, `--crop-on` crops it to a snapshot node's frame. The
+ * snapshot is part of what the command requires, not something to discover after the PNG is
  * already on disk. Declaring it in the use is what lets admission refuse the whole request up
  * front on a target that can capture pixels but not a tree.
  */
-const captureScreenshotWithOverlayRefsUse = defineUse({
+const captureScreenshotWithSnapshotUse = defineUse({
   required: ['captureScreenshot', 'captureSnapshot'],
 });
 
 export const screenshotRuntimePlanUses = Object.freeze([
   captureScreenshotUse,
-  captureScreenshotWithOverlayRefsUse,
+  captureScreenshotWithSnapshotUse,
 ] as const);
 
 export type ScreenshotRuntimePlan =
   | Readonly<{ kind: 'capture'; use: typeof captureScreenshotUse }>
   | Readonly<{
       kind: 'capture-with-overlay-refs';
-      use: typeof captureScreenshotWithOverlayRefsUse;
+      use: typeof captureScreenshotWithSnapshotUse;
+    }>
+  | Readonly<{
+      kind: 'capture-with-crop-on';
+      use: typeof captureScreenshotWithSnapshotUse;
     }>;
 
 /** Selects one owner-fact-backed capture plan from normalized command intent. */
 export function resolveScreenshotRuntimePlan(
-  input: Readonly<{ overlayRefs: boolean }>,
+  input: Readonly<{ overlayRefs: boolean; cropOn: boolean }>,
 ): ScreenshotRuntimePlan {
+  if (input.cropOn) {
+    return Object.freeze({
+      kind: 'capture-with-crop-on',
+      use: captureScreenshotWithSnapshotUse,
+    });
+  }
   return input.overlayRefs
     ? Object.freeze({
         kind: 'capture-with-overlay-refs',
-        use: captureScreenshotWithOverlayRefsUse,
+        use: captureScreenshotWithSnapshotUse,
       })
     : Object.freeze({ kind: 'capture', use: captureScreenshotUse });
 }
@@ -710,8 +730,6 @@ export const keyboardRuntimePlanUses = Object.freeze([
 export type PlatformRuntimeHost = AppLogRuntimeHost &
   NetworkRuntimeHost &
   Readonly<{
-    appInventory: AppInventoryRuntimeHost;
-    appState: AppStateRuntimeHost;
     /** Focused native ports; deployment semantics remain in the owning family packages. */
     appleDeployment: AppleAppDeploymentExecutor;
     androidDeployment: AndroidAppDeploymentExecutor;

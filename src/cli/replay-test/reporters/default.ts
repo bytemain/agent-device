@@ -6,7 +6,7 @@ import {
 } from '../progress.ts';
 import { formatDurationSeconds } from '../duration-format.ts';
 import { colorize, supportsColor } from '../../../commands/output/color.ts';
-import { formatReplayDivergenceReport } from '@agent-device/contracts/divergence';
+import { formatReplayDivergenceReport } from '@agent-device/ad-replay/divergence';
 import type {
   ReplayTestReporter,
   ReplayTestReporterContext,

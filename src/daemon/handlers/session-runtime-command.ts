@@ -1,4 +1,4 @@
-import type { DaemonRequest, DaemonResponse } from '../types.ts';
+import type { DaemonRequest, DaemonResponse } from '../daemon-request.ts';
 import { publicPlatformString } from '@agent-device/kernel/device';
 import { clearRuntimeHintsRuntimeUse } from '@agent-device/contracts/application-lifecycle-runtime-plan';
 import { SessionStore } from '../session-store.ts';
@@ -178,7 +178,7 @@ function setRuntimeCommand(params: {
   if (!platform) {
     return errorResponse(
       'INVALID_ARGS',
-      'runtime set only supports iOS and Android sessions. Pass --platform ios|android or open an iOS/Android session first.',
+      'runtime set only supports iOS, Android, and HarmonyOS sessions. Pass --platform ios|android|harmonyos or open a supported session first.',
     );
   }
   if (sessionLeaf !== undefined && sessionLeaf !== platform) {

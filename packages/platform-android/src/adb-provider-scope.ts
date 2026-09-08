@@ -1,12 +1,20 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import path from 'node:path';
 import type { DeviceInfo } from '@agent-device/kernel/device';
+import { AppError } from '@agent-device/kernel/errors';
+import {
+  requireAndroidAdbHost,
+  withAndroidHostAdbTransport,
+  type AndroidAdbCommandExecutorOverride,
+  type AndroidAdbHostTransport,
+} from './adb-host.ts';
 import { withAdbFailureHints } from './adb-failure.ts';
-import { requireAndroidAdbHost, type AndroidAdbCommandExecutorOverride } from './adb-host.ts';
 import { createExecAndroidPortReverseProvider } from './adb-port-reverse.ts';
 import { normalizeAndroidAdbProvider } from './adb-provider-normalization.ts';
 import {
   normalizeAndroidAdbInstallOptions,
   type AndroidAdbExecutor,
+  type AndroidAdbExecutorOptions,
   type AndroidAdbProvider,
   type AndroidAdbProviderScopeOptions,
   type AndroidAdbSpawner,
@@ -22,29 +30,48 @@ import {
 type AndroidAdbProviderScope = {
   provider: AndroidAdbProvider;
   serial: string;
+  serverPort?: number;
 };
 
 const androidAdbProviderScope = new AsyncLocalStorage<AndroidAdbProviderScope>();
 
-export function createDeviceAdbExecutor(device: DeviceInfo): AndroidAdbExecutor {
-  return createSerialAdbExecutor(device.id);
+export function createDeviceAdbExecutor(
+  device: DeviceInfo,
+  options: Readonly<{ serverPort?: number }> = {},
+): AndroidAdbExecutor {
+  return createSerialAdbExecutor(device.id, options.serverPort);
 }
 
-function createSerialAdbExecutor(serial: string): AndroidAdbExecutor {
-  return withAdbFailureHints(
-    async (args, options) => await requireAndroidAdbHost().execSerialAdb(serial, args, options),
-  );
+function createSerialAdbExecutor(serial: string, serverPort?: number): AndroidAdbExecutor {
+  return withAdbFailureHints(async (args, options) => {
+    const port = scopedServerPort(serial, serverPort);
+    return await requireAndroidAdbHost().execSerialAdb(
+      serial,
+      args,
+      port === undefined ? options : { ...options, serverPort: port },
+    );
+  });
 }
 
-function createSerialAdbSpawner(serial: string): AndroidAdbSpawner {
-  return (args, options) => requireAndroidAdbHost().spawnSerialAdb(serial, args, options);
+function createSerialAdbSpawner(serial: string, serverPort?: number): AndroidAdbSpawner {
+  return (args, options) => {
+    const port = scopedServerPort(serial, serverPort);
+    return requireAndroidAdbHost().spawnSerialAdb(
+      serial,
+      args,
+      port === undefined ? options : { ...options, serverPort: port },
+    );
+  };
 }
 
-export function createLocalAndroidAdbProvider(device: DeviceInfo): AndroidAdbProvider {
-  const exec = createDeviceAdbExecutor(device);
+export function createLocalAndroidAdbProvider(
+  device: DeviceInfo,
+  options: Readonly<{ serverPort?: number }> = {},
+): AndroidAdbProvider {
+  const exec = createDeviceAdbExecutor(device, options);
   return {
     exec,
-    spawn: createSerialAdbSpawner(device.id),
+    spawn: createSerialAdbSpawner(device.id, options.serverPort),
     reverse: createExecAndroidPortReverseProvider(exec),
     pull: async (remotePath, localPath, options) =>
       await exec(['pull', remotePath, localPath], options),
@@ -59,7 +86,7 @@ export function resolveAndroidAdbExecutor(
   device: DeviceInfo,
   executor?: AndroidAdbExecutor,
 ): AndroidAdbExecutor {
-  const scoped = androidAdbProviderScope.getStore();
+  const scoped = scopeForDevice(device);
   if (executor) return executor;
   if (scoped?.serial === device.id) return scoped.provider.exec;
   return createDeviceAdbExecutor(device);
@@ -69,8 +96,8 @@ export function resolveAndroidAdbProvider(
   device: DeviceInfo,
   provider?: AndroidAdbProvider | AndroidAdbExecutor,
 ): AndroidAdbProvider {
+  const scoped = scopeForDevice(device);
   if (provider) return normalizeAndroidAdbProvider(provider);
-  const scoped = androidAdbProviderScope.getStore();
   return scoped?.serial === device.id
     ? normalizeAndroidAdbProvider(scoped.provider)
     : createLocalAndroidAdbProvider(device);
@@ -84,7 +111,7 @@ export function resolveAndroidAdbProvider(
 export function resolveScopedAndroidAdbBackgroundTransport(
   device: DeviceInfo,
 ): ScopedAndroidAdbBackgroundTransport {
-  const scoped = androidAdbProviderScope.getStore();
+  const scoped = scopeForDevice(device);
   if (scoped?.serial !== device.id) return { mode: 'local' };
   return {
     mode: 'transport-composed',
@@ -93,12 +120,12 @@ export function resolveScopedAndroidAdbBackgroundTransport(
 }
 
 export function resolveAndroidTextInjector(device: DeviceInfo): AndroidTextInjector | undefined {
-  const scoped = androidAdbProviderScope.getStore();
+  const scoped = scopeForDevice(device);
   return scoped?.serial === device.id ? scoped.provider.text : undefined;
 }
 
 export function resolveAndroidTouchProvider(device: DeviceInfo): AndroidTouchProvider | undefined {
-  const scoped = androidAdbProviderScope.getStore();
+  const scoped = scopeForDevice(device);
   return scoped?.serial === device.id && scoped.provider.touch ? scoped.provider : undefined;
 }
 
@@ -124,25 +151,120 @@ export async function withAndroidAdbProvider<T>(
   // command-executor override and direct resolveAndroidAdb* lookups — gets
   // classified failure hints on exec and the semantic provider methods alike.
   const enriched = normalizeAndroidAdbProvider(provider);
-  const scope = { provider: enriched, serial: options.serial };
+  const scope = {
+    provider: enriched,
+    serial: options.serial,
+    ...(options.serverPort === undefined ? {} : { serverPort: options.serverPort }),
+  };
   const override = createAndroidCommandExecutorOverride(scope);
-  return await androidAdbProviderScope.run(
-    scope,
-    async () => await requireAndroidAdbHost().withAdbCommandExecutorOverride(override, fn),
-  );
+  const run = async () =>
+    await androidAdbProviderScope.run(
+      scope,
+      async () => await requireAndroidAdbHost().withAdbCommandExecutorOverride(override, fn),
+    );
+  if (options.serverPort === undefined) return await run();
+  return await withAndroidHostAdbTransport(createScopedHostTransport(scope), run);
 }
 
 function createAndroidCommandExecutorOverride(
   scope: AndroidAdbProviderScope,
 ): AndroidAdbCommandExecutorOverride {
   return (cmd, args, options) => {
-    if (cmd !== 'adb') return undefined;
-    const providerArgs = stripAdbSerialArgs(args, scope.serial);
-    if (!providerArgs) return undefined;
+    if (!isAdbCommand(cmd)) return undefined;
+    if (scope.serverPort === undefined && cmd !== 'adb') return undefined;
+    const serial = readAdbSerial(args);
+    requireScopedSerial(scope, serial);
+    if (serial && serial !== scope.serial) return undefined;
+    if (serial === scope.serial) {
+      const providerArgs = stripAdbSerialArgs(args, scope.serial);
+      if (!providerArgs) return undefined;
+      return requireAndroidAdbHost().withoutAdbCommandExecutorOverride(
+        async () => await scope.provider.exec(providerArgs, options),
+      );
+    }
+    if (scope.serverPort === undefined) return undefined;
     return requireAndroidAdbHost().withoutAdbCommandExecutorOverride(
-      async () => await scope.provider.exec(providerArgs, options),
+      async () =>
+        await requireAndroidAdbHost().execHostAdb(['-s', scope.serial, ...args], {
+          ...options,
+          allowFailure: true,
+          serverPort: scope.serverPort,
+        }),
     );
   };
+}
+
+function createScopedHostTransport(scope: AndroidAdbProviderScope): AndroidAdbHostTransport {
+  return async (args: string[], options?: AndroidAdbExecutorOptions) => {
+    const serial = readAdbSerial(args);
+    requireScopedSerial(scope, serial);
+    const host = requireAndroidAdbHost();
+    return await host.withoutAdbCommandExecutorOverride(
+      async () =>
+        await host.execHostAdb(serial === undefined ? ['-s', scope.serial, ...args] : args, {
+          ...options,
+          allowFailure: true,
+          serverPort: scope.serverPort,
+        }),
+    );
+  };
+}
+
+function scopeForDevice(device: DeviceInfo): AndroidAdbProviderScope | undefined {
+  const scoped = androidAdbProviderScope.getStore();
+  requireScopedSerial(scoped, device.id);
+  return scoped;
+}
+
+function requireScopedSerial(
+  scope: AndroidAdbProviderScope | undefined,
+  serial: string | undefined,
+) {
+  if (scope?.serverPort !== undefined && serial !== undefined && serial !== scope.serial) {
+    throw new AppError('COMMAND_FAILED', 'Managed ADB transport cannot address another device.', {
+      reason: 'managed-device-transport-mismatch',
+    });
+  }
+}
+
+function scopedServerPort(serial: string, requested: number | undefined): number | undefined {
+  const scope = androidAdbProviderScope.getStore();
+  requireScopedSerial(scope, serial);
+  if (scope?.serverPort === undefined) return requested;
+  if (requested !== undefined && requested !== scope.serverPort) {
+    throw new AppError('COMMAND_FAILED', 'Managed ADB transport cannot select another server.', {
+      reason: 'managed-device-transport-mismatch',
+    });
+  }
+  return scope.serverPort;
+}
+
+function isAdbCommand(command: string): boolean {
+  const executable = path.basename(command).replace(/\.(?:com|exe|bat|cmd)$/i, '');
+  return executable === 'adb';
+}
+
+function readAdbSerial(args: readonly string[]): string | undefined {
+  const serialIndex = findAdbSerialIndex(args);
+  return serialIndex === undefined ? undefined : args[serialIndex + 1];
+}
+
+function findAdbSerialIndex(args: readonly string[]): number | undefined {
+  let index = 0;
+  while (index < args.length) {
+    const argument = args[index];
+    if (argument === '-s') return index;
+    if (argument === '-P' || argument === '-H' || argument === '-L') {
+      index += 2;
+      continue;
+    }
+    if (argument === '-a' || argument === '-d' || argument === '-e') {
+      index += 1;
+      continue;
+    }
+    return undefined;
+  }
+  return undefined;
 }
 
 function stripAdbSerialArgs(args: string[], expectedSerial: string): string[] | undefined {
@@ -150,7 +272,7 @@ function stripAdbSerialArgs(args: string[], expectedSerial: string): string[] | 
   // adb -s <serial> <command...>. Global commands
   // such as adb devices/version, calls for another serial, and host-preconfigured
   // invocations stay local.
-  if (args[0] !== '-s' || !args[1]) return undefined;
-  if (args[1] !== expectedSerial) return undefined;
-  return args.slice(2);
+  const serialIndex = findAdbSerialIndex(args);
+  if (serialIndex === undefined || args[serialIndex + 1] !== expectedSerial) return undefined;
+  return [...args.slice(0, serialIndex), ...args.slice(serialIndex + 2)];
 }

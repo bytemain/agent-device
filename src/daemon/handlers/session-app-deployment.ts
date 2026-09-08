@@ -10,9 +10,10 @@ import { cleanupUploadedArtifact, prepareUploadedArtifact } from '../artifact-tr
 import { expireRefFrame } from '../ref-frame.ts';
 import type { BindDeviceRuntime, InspectDeviceRuntimeFacts } from '../request-runtime-binding.ts';
 import { SessionStore } from '../session-store.ts';
-import type { DaemonRequest, DaemonResponse, SessionState } from '../types.ts';
+import type { DaemonRequest, DaemonResponse } from '../daemon-request.ts';
+import type { SessionState } from '../session-state.ts';
 import { resolvePayloadInput } from '../../core/payload-input.ts';
-import { resolveDeployResultTarget } from '../result-serialization.ts';
+import { resolveDeployResultTarget } from '../../core/deploy-result-target.ts';
 import { withSuccessText } from '@agent-device/kernel/success-text';
 import { recordSessionAction } from '../session-action-recorder.ts';
 import { errorResponse } from '../response.ts';
@@ -66,7 +67,7 @@ export async function handleAppDeploymentCommand(params: {
       return errorResponse('INVALID_ARGS', `App binary not found: ${appPath}`);
     }
 
-    const device = await resolveCommandDevice({ session, flags, ensureReady: false });
+    const device = await resolveCommandDevice({ session, flags });
     const facts = await requireRuntimeFacts(params.inspectFacts)(device);
     const unsupported = unavailableRuntimeOperationResponse(command, facts.operations.deployApp);
     if (unsupported) return unsupported;
@@ -114,7 +115,7 @@ export async function handlePushNotificationCommand(
     );
   }
   const payload = await readNotificationPayload(resolvePushPayload(payloadArg, req.meta?.cwd));
-  const device = await resolveCommandDevice({ session, flags, ensureReady: false });
+  const device = await resolveCommandDevice({ session, flags });
   const facts = await requireRuntimeFacts(params.inspectFacts)(device);
   const unsupported =
     unavailableRuntimeOperationResponse('push', facts.operations.ensureReady) ??

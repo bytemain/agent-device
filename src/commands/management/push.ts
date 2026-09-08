@@ -4,7 +4,7 @@ import type {
   JsonObject,
 } from '@agent-device/contracts/client';
 import type { CommandSchemaOverride } from '../../cli-schema/types.ts';
-import { PUBLIC_COMMANDS } from '../../command-catalog.ts';
+import { PUBLIC_COMMANDS } from '@agent-device/command-registry/catalog';
 import {
   commonInputFromFlags,
   direct,
@@ -12,7 +12,6 @@ import {
   requiredString,
 } from '../cli-grammar/common.ts';
 import type { CliReader, DaemonWriter } from '../cli-grammar/types.ts';
-import { defineExecutableCommand } from '../command-contract.ts';
 import {
   jsonSchemaField,
   looseObjectField,
@@ -49,15 +48,6 @@ const triggerAppEventCommandMetadata = defineFieldCommandMetadata(
       'Structured payload passed to the event, in the shape the app documents for it.',
     ),
   },
-);
-
-const pushCommandDefinition = defineExecutableCommand(pushCommandMetadata, (client, input) =>
-  client.apps.push(input),
-);
-
-const triggerAppEventCommandDefinition = defineExecutableCommand(
-  triggerAppEventCommandMetadata,
-  (client, input) => client.apps.triggerEvent(input),
 );
 
 const pushCliSchema = {
@@ -97,7 +87,7 @@ const pushCommandFacet = defineCommandFacet({
     summary: 'Deliver a push notification payload',
   },
   metadata: pushCommandMetadata,
-  definition: pushCommandDefinition,
+  run: (client, input) => client.apps.push(input),
   cliSchema: pushCliSchema,
   cliReader: pushCliReader,
   daemonWriter: pushDaemonWriter,
@@ -109,7 +99,7 @@ const triggerAppEventCommandFacet = defineCommandFacet({
     summary: 'Invoke an app-defined automation event',
   },
   metadata: triggerAppEventCommandMetadata,
-  definition: triggerAppEventCommandDefinition,
+  run: (client, input) => client.apps.triggerEvent(input),
   cliSchema: triggerAppEventCliSchema,
   cliReader: triggerAppEventCliReader,
   daemonWriter: triggerAppEventDaemonWriter,

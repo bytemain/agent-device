@@ -28,11 +28,15 @@ import {
 import { profileToCliFlags } from '../remote-config-flags.ts';
 import type { BatchStep } from '@agent-device/contracts/client';
 import { AppError } from '@agent-device/kernel/errors';
-import type { LeaseBackend, SessionRuntimeHints } from '@agent-device/kernel/contracts';
+import {
+  isSessionRuntimePlatform,
+  type LeaseBackend,
+  type SessionRuntimeHints,
+} from '@agent-device/kernel/contracts';
 import type { CliFlags } from '@agent-device/contracts/command';
 import type { AgentDeviceClient, Lease } from '../../agent-device-client.ts';
 import type { CloudProviderSessionResult } from '@agent-device/contracts/observability';
-import { INTERNAL_COMMANDS, PUBLIC_COMMANDS } from '../../command-catalog.ts';
+import { INTERNAL_COMMANDS, PUBLIC_COMMANDS } from '@agent-device/command-registry/catalog';
 import { readMetroPrepareKind } from '../../commands/metro/prepare-kind.ts';
 import { connectionProviderCapabilities } from '../connection/provider-policy.ts';
 import { readCloudDeviceFeatureProfileFields } from '../connection/profile-fields.ts';
@@ -689,6 +693,7 @@ export function resolveRequestedLeaseBackend(flags: CliFlags): LeaseBackend | un
   if (flags.leaseBackend) return flags.leaseBackend;
   if (flags.platform === 'android') return 'android-instance';
   if (flags.platform === 'ios') return 'ios-instance';
+  if (flags.platform === 'harmonyos') return 'harmonyos-instance';
   return undefined;
 }
 
@@ -697,7 +702,7 @@ function requireRequestedLeaseBackend(flags: CliFlags, command: string): LeaseBa
   if (leaseBackend) return leaseBackend;
   throw new AppError(
     'INVALID_ARGS',
-    `${command} requires --platform ios|android or --lease-backend when the remote connection has not resolved a lease yet.`,
+    `${command} requires --platform ios|android|harmonyos or --lease-backend when the remote connection has not resolved a lease yet.`,
   );
 }
 
@@ -733,7 +738,7 @@ function isRuntimeCompatibleWithPlatform(
   runtime: SessionRuntimeHints,
   platform: CliFlags['platform'],
 ): boolean {
-  if (!runtime.platform || !platform || (platform !== 'ios' && platform !== 'android')) {
+  if (!runtime.platform || !platform || !isSessionRuntimePlatform(platform)) {
     return true;
   }
   return runtime.platform === platform;
@@ -887,7 +892,7 @@ function applyResolvedDeviceSelector(flags: CliFlags, device: DeviceInfo): void 
     flags.udid = device.id;
     return;
   }
-  if (device.platform === 'android') {
+  if (device.platform === 'android' || device.platform === 'harmonyos') {
     flags.serial = device.id;
   }
 }
@@ -931,6 +936,7 @@ function buildProxyDeviceKey(device: DeviceInfo): string {
 function leaseBackendForDevice(device: DeviceInfo): LeaseBackend | undefined {
   if (isIosFamily(device)) return 'ios-instance';
   if (device.platform === 'android') return 'android-instance';
+  if (device.platform === 'harmonyos') return 'harmonyos-instance';
   return undefined;
 }
 

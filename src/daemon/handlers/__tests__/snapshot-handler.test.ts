@@ -10,7 +10,8 @@ import { handleSnapshotCommands as handleProductionSnapshotCommands } from '../s
 import { captureSnapshot } from '../../snapshot-capture.ts';
 import { SessionStore } from '../../session-store.ts';
 import { setActiveProviderDeviceRuntimes } from '../../../provider-device-runtime.ts';
-import type { DaemonResponse, SessionState } from '../../types.ts';
+import type { DaemonResponse } from '../../daemon-request.ts';
+import type { SessionState } from '../../session-state.ts';
 import { AppError } from '@agent-device/kernel/errors';
 import { platformResourceCleanup } from '../../../platform-runtime-resource-cleanup.ts';
 import { buildInteractionSurfaceSignature } from '../../interaction-outcome-policy.ts';
@@ -20,7 +21,6 @@ import type { CaptureSnapshotResult } from '@agent-device/contracts/client';
 import { buildNodes } from '../../../__tests__/test-utils/snapshot-builders.ts';
 import {
   fixtureScreenshotCaptures,
-  fixtureSettingsMutations,
   resetSnapshotRuntimeFixture,
   snapshotRuntimeFixture,
 } from '../../__tests__/snapshot-runtime-fixture.ts';
@@ -34,7 +34,6 @@ import {
   inboxRow,
   iosSimulatorDevice,
   locationRequiredCapture,
-  macOsDevice,
   makeAndroidFreshnessSession,
   makeProviderRuntimeOwning,
   makeSession,
@@ -47,7 +46,6 @@ vi.mock('../../snapshot-interactor-capture.ts', async () => {
   const fixture = await import('../../__tests__/legacy-snapshot-capture-fixture.ts');
   return { captureSnapshotWithInteractor: fixture.captureSnapshotThroughLegacyDispatchFixture };
 });
-
 vi.mock('@agent-device/platform-apple/runner/operations', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@agent-device/platform-apple/runner/operations')>();
@@ -64,6 +62,7 @@ vi.mock('../../ios-app-session-hint.ts', () => ({
 
 import { runAppleRunnerCommand } from '@agent-device/platform-apple/runner/operations';
 import { buildIosOpenCommandHint } from '../../ios-app-session-hint.ts';
+import { expireRefFrame, refFrame, refFrameState, refFrameTree } from '../../ref-frame.ts';
 
 const mockRunnerCommand = vi.mocked(runAppleRunnerCommand);
 const mockBuildIosOpenCommandHint = vi.mocked(buildIosOpenCommandHint);
@@ -168,7 +167,6 @@ function assertAndroidTimeoutEvidencePayload(evidence: unknown) {
   expect(record.path).toEqual(expect.stringContaining('snapshot-timeout-overlay-refs.png'));
   expect(fs.existsSync(record.path as string)).toBe(true);
   expect(record.overlayRefsAnnotated).toBe(true);
-  expect(record.overlayRefs).toHaveLength(1);
   expect(record.overlayRefs).toEqual([expect.objectContaining({ ref: 'e1', label: 'Continue' })]);
 }
 
@@ -445,7 +443,7 @@ test('snapshot re-activates a complete frame; diff preserves it (ADR 0014)', asy
     backend: 'android',
   };
   // A prior device action expired the frame.
-  session.refFrameState = 'expired';
+  expireRefFrame(session);
   sessionStore.set(sessionName, session);
   legacyDispatchCapture.mockResolvedValue({
     nodes: [{ index: 0, depth: 0, type: 'android.widget.Button', label: 'Fresh' }],
@@ -463,7 +461,7 @@ test('snapshot re-activates a complete frame; diff preserves it (ADR 0014)', asy
   // The snapshot response hands every stored node's ref to the client: it
   // re-activates a complete frame, so refs are current again.
   expect(snapshotResponse?.ok).toBe(true);
-  expect(sessionStore.get(sessionName)?.refFrameState).toBe('active');
+  expect(refFrameState(sessionStore.get(sessionName)!)).toBe('active');
 
   const diffResponse = await handleSnapshotCommands({
     req: snapshotRequest(sessionName, 'diff', { positionals: ['snapshot'] }),
@@ -475,7 +473,7 @@ test('snapshot re-activates a complete frame; diff preserves it (ADR 0014)', asy
   // diff replaces the observation but is a read (summary response): it preserves
   // the authorized frame rather than expiring it.
   expect(diffResponse?.ok).toBe(true);
-  expect(sessionStore.get(sessionName)?.refFrameState).toBe('active');
+  expect(refFrameState(sessionStore.get(sessionName)!)).toBe('active');
 });
 
 // #1076 versioned refs — shared harness for the refsGeneration tests below.
@@ -517,8 +515,8 @@ function expectInternalObservationResult(params: {
   expect(params.response?.ok ? params.response.data?.refsGeneration : undefined).toBeUndefined();
   expect(params.session?.snapshotGeneration).toBe((params.publishedGeneration as number) + 1);
   expect(params.session?.snapshot).not.toBe(params.publishedTree);
-  expect(params.session?.refFrameGeneration).toBe(params.publishedGeneration);
-  expect(params.session?.refFrameTree).toBe(params.publishedTree);
+  expect(refFrame(params.session!).generation).toBe(params.publishedGeneration);
+  expect(refFrameTree(params.session!)).toBe(params.publishedTree);
 }
 
 test('snapshot responses carry refsGeneration and advance it per capture (#1076 versioned refs)', async () => {
@@ -560,8 +558,8 @@ test('daemon-private snapshot observation advances capture state without publish
 
   await runVersionedRefsCommand({ sessionStore, sessionName, command: 'snapshot' });
   const published = sessionStore.get(sessionName);
-  const publishedGeneration = published?.refFrameGeneration;
-  const publishedTree = published?.refFrameTree;
+  const publishedGeneration = refFrame(published!).generation;
+  const publishedTree = refFrameTree(published!);
 
   legacyDispatchCapture.mockResolvedValue({
     nodes: [{ index: 0, depth: 0, type: 'android.widget.Button', label: 'Internal' }],
@@ -1439,125 +1437,6 @@ test('wait timeout without readable capture does not inspect the current surface
     expect(response.error.details?.readableCaptures).toBe(0);
   }
   expect(legacyDispatchCapture).not.toHaveBeenCalled();
-});
-
-test('settings rejects unsupported iOS physical devices', async () => {
-  const sessionStore = makeSessionStore();
-  const sessionName = 'ios-device';
-  sessionStore.set(
-    sessionName,
-    makeSession(sessionName, {
-      platform: 'apple',
-      id: 'ios-device-1',
-      name: 'My iPhone',
-      kind: 'device',
-      booted: true,
-    }),
-  );
-
-  const response = await handleSnapshotCommands({
-    req: snapshotRequest(sessionName, 'settings', { positionals: ['wifi', 'on'] }),
-    sessionName,
-    logPath: '/tmp/daemon.log',
-    sessionStore,
-  });
-
-  expect(response).toBeTruthy();
-  expect(response?.ok).toBe(false);
-  if (response && !response.ok) {
-    expect(response.error.code).toBe('UNSUPPORTED_OPERATION');
-    expect(response.error.message).toMatch(/settings is not supported/i);
-  }
-});
-
-test('settings clear-app-state dispatches explicit app id without an active app session', async () => {
-  const sessionStore = makeSessionStore();
-  const sessionName = 'ios-clear-state';
-  sessionStore.set(sessionName, makeSession(sessionName, iosSimulatorDevice));
-
-  const response = await handleSnapshotCommands({
-    req: snapshotRequest(sessionName, 'settings', {
-      positionals: ['clear-app-state', 'org.reactnavigation.playground'],
-    }),
-    sessionName,
-    logPath: '/tmp/daemon.log',
-    sessionStore,
-  });
-
-  expect(response?.ok).toBe(true);
-  expect(fixtureSettingsMutations.at(-1)).toMatchObject({
-    setting: 'clear-app-state',
-    state: 'clear',
-    appBundleId: 'org.reactnavigation.playground',
-  });
-});
-
-test('settings clear-app-state rejects missing app id when no app session is bound', async () => {
-  const sessionStore = makeSessionStore();
-  const sessionName = 'ios-clear-state-missing-app';
-  sessionStore.set(sessionName, makeSession(sessionName, iosSimulatorDevice));
-
-  const response = await handleSnapshotCommands({
-    req: snapshotRequest(sessionName, 'settings', { positionals: ['clear-app-state'] }),
-    sessionName,
-    logPath: '/tmp/daemon.log',
-    sessionStore,
-  });
-
-  expect(response?.ok).toBe(false);
-  if (response?.ok === false) {
-    expect(response.error.code).toBe('INVALID_ARGS');
-    expect(response.error.message).toMatch(/requires an app id/i);
-  }
-  expect(fixtureSettingsMutations).toHaveLength(0);
-});
-
-test('settings usage hint documents canonical faceid states', async () => {
-  const sessionStore = makeSessionStore();
-  const response = await handleSnapshotCommands({
-    req: snapshotRequest('default', 'settings'),
-    sessionName: 'default',
-    logPath: '/tmp/daemon.log',
-    sessionStore,
-  });
-
-  expect(response).toBeTruthy();
-  expect(response?.ok).toBe(false);
-  if (response && !response.ok) {
-    expect(response.error.code).toBe('INVALID_ARGS');
-    expect(response.error.message).toMatch(/appearance <light\|dark\|toggle>/);
-    expect(response.error.message).toMatch(/match\|nonmatch\|enroll\|unenroll/);
-    expect(response.error.message).toMatch(/grant\|deny\|reset/);
-    expect(response.error.message).not.toMatch(/validate\|unvalidate/);
-  }
-});
-
-test('settings on macOS rejects wifi before dispatch with explicit subset guidance', async () => {
-  const sessionStore = makeSessionStore();
-  const sessionName = 'macos-settings-wifi';
-  sessionStore.set(sessionName, makeSession(sessionName, macOsDevice));
-
-  const response = await handleSnapshotCommands({
-    req: snapshotRequest(sessionName, 'settings', { positionals: ['wifi', 'on'] }),
-    sessionName,
-    logPath: '/tmp/daemon.log',
-    sessionStore,
-  });
-
-  expect(response).toBeTruthy();
-  expect(response?.ok).toBe(false);
-  expect(fixtureSettingsMutations).toHaveLength(0);
-  if (response && !response.ok) {
-    expect(response.error.code).toBe('INVALID_ARGS');
-    expect(response.error.message).toMatch(/Unsupported macOS setting: wifi/i);
-    expect(response.error.message).toMatch(/appearance <light\|dark\|toggle>/);
-    expect(response.error.message).toMatch(
-      /permission <grant\|reset> <accessibility\|screen-recording\|input-monitoring>/,
-    );
-    expect(response.error.message).toMatch(
-      /wifi\|airplane\|location\|animations remain unsupported on macOS/i,
-    );
-  }
 });
 
 test('diff rejects unsupported kind', async () => {

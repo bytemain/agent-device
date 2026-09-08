@@ -44,9 +44,33 @@ export function validateNoRetiredScreenshotMaxSize(
   }
 }
 
+/**
+ * Machine-readable `screenshot --crop-on` outcome taxonomy. Failures carry these
+ * values in `error.details.reason`; `partialIntersection` doubles as the
+ * success-path warning token. Callers branch on the values, never on message
+ * text. `pendingPixelIdentityEvidence` is the acceptance-matrix rejection
+ * reason, not a runtime failure.
+ */
+export const SCREENSHOT_CROP_REASONS = {
+  selectorInvalid: 'CROP_SELECTOR_INVALID',
+  targetNotFound: 'CROP_TARGET_NOT_FOUND',
+  targetAmbiguous: 'CROP_TARGET_AMBIGUOUS',
+  captureUnreadable: 'CROP_CAPTURE_UNREADABLE',
+  captureIncomplete: 'CROP_CAPTURE_INCOMPLETE',
+  emptyIntersection: 'CROP_EMPTY_INTERSECTION',
+  partialIntersection: 'CROP_PARTIAL_INTERSECTION',
+  targetNotAccepted: 'CROP_TARGET_NOT_ACCEPTED',
+  frameMismatch: 'CROP_FRAME_MISMATCH',
+  pendingPixelIdentityEvidence: 'PENDING_PIXEL_IDENTITY_EVIDENCE',
+} as const;
+
+export type ScreenshotCropReason =
+  (typeof SCREENSHOT_CROP_REASONS)[keyof typeof SCREENSHOT_CROP_REASONS];
+
 export const SCREENSHOT_COMMAND_FLAG_KEYS = [
   'out',
   'overlayRefs',
+  'screenshotCropOn',
   'screenshotPixelDensity',
   'screenshotFullscreen',
   'screenshotScale',
@@ -55,6 +79,7 @@ export const SCREENSHOT_COMMAND_FLAG_KEYS = [
 ] as const;
 
 export const SCREENSHOT_ACTION_FLAG_KEYS = [
+  'screenshotCropOn',
   'screenshotPixelDensity',
   'screenshotFullscreen',
   'screenshotScale',
@@ -67,7 +92,7 @@ type ScreenshotSpecificFlagKey = (typeof SCREENSHOT_ACTION_FLAG_KEYS)[number];
 type ScreenshotSpecificFlagDefinition = {
   key: ScreenshotSpecificFlagKey;
   names: readonly string[];
-  type: 'boolean' | 'int' | 'number';
+  type: 'boolean' | 'int' | 'number' | 'string';
   min?: number;
   max?: number;
   usageLabel: string;
@@ -75,6 +100,14 @@ type ScreenshotSpecificFlagDefinition = {
 };
 
 export const SCREENSHOT_SPECIFIC_FLAG_DEFINITIONS: readonly ScreenshotSpecificFlagDefinition[] = [
+  {
+    key: 'screenshotCropOn',
+    names: ['--crop-on'],
+    type: 'string',
+    usageLabel: '--crop-on <selector-expression>',
+    usageDescription:
+      'Screenshot: crop the capture to the frame of the selector resolved on the same screen',
+  },
   {
     key: 'screenshotPixelDensity',
     names: ['--pixel-density'],
@@ -144,9 +177,18 @@ const SCREENSHOT_SCRIPT_NUMBER_FLAGS = [
   },
 ] as const;
 
+const SCREENSHOT_SCRIPT_STRING_FLAGS = [
+  {
+    token: '--crop-on',
+    key: 'screenshotCropOn',
+    label: 'screenshot --crop-on',
+  },
+] as const;
+
 export type ScreenshotRequestFlags = {
   out?: string;
   overlayRefs?: boolean;
+  screenshotCropOn?: string;
   screenshotPixelDensity?: number;
   screenshotFullscreen?: boolean;
   screenshotScale?: number;
@@ -164,6 +206,7 @@ export type ScreenshotDispatchFlags = Pick<
 
 export type ScreenshotRuntimeFlags = Pick<
   ScreenshotRequestFlags,
+  | 'screenshotCropOn'
   | 'screenshotPixelDensity'
   | 'screenshotFullscreen'
   | 'screenshotScale'
@@ -173,6 +216,7 @@ export type ScreenshotRuntimeFlags = Pick<
 
 export type ScreenshotPublicOptions = {
   overlayRefs?: boolean;
+  cropOn?: string;
   pixelDensity?: number;
   fullscreen?: boolean;
   scale?: number;
@@ -182,6 +226,7 @@ export type ScreenshotPublicOptions = {
 
 export type ScreenshotRuntimeOptions = {
   overlayRefs?: boolean;
+  cropOn?: string;
   pixelDensity?: number;
   fullscreen?: boolean;
   scale?: number;
@@ -194,6 +239,7 @@ export function screenshotOptionsFromFlags(
 ): ScreenshotRuntimeOptions {
   return stripUndefined({
     overlayRefs: flags?.overlayRefs,
+    cropOn: flags?.screenshotCropOn,
     pixelDensity: flags?.screenshotPixelDensity,
     fullscreen: flags?.screenshotFullscreen,
     scale: flags?.screenshotScale,
@@ -207,6 +253,7 @@ export function screenshotFlagsFromOptions(
 ): Partial<ScreenshotRequestFlags> {
   return stripUndefined({
     overlayRefs: options.overlayRefs,
+    screenshotCropOn: options.screenshotCropOn ?? options.cropOn,
     screenshotPixelDensity: options.screenshotPixelDensity ?? options.pixelDensity,
     screenshotFullscreen: options.screenshotFullscreen ?? options.fullscreen,
     screenshotScale: options.screenshotScale,
@@ -269,7 +316,8 @@ export function readScreenshotScriptFlag(params: {
   return (
     readScreenshotBooleanScriptFlag(token, flags, index) ??
     readScreenshotIntScriptFlag({ args, index, flags, token }) ??
-    readScreenshotNumberScriptFlag({ args, index, flags, token }) ?? { handled: false }
+    readScreenshotNumberScriptFlag({ args, index, flags, token }) ??
+    readScreenshotStringScriptFlag({ args, index, flags, token }) ?? { handled: false }
   );
 }
 
@@ -322,5 +370,21 @@ function readScreenshotNumberScriptFlag(params: {
     );
   }
   params.flags[definition.key] = parsed;
+  return { handled: true, nextIndex: params.index + 1 };
+}
+
+function readScreenshotStringScriptFlag(params: {
+  args: readonly string[];
+  index: number;
+  flags: Partial<ScreenshotRequestFlags>;
+  token: string | undefined;
+}): { handled: true; nextIndex: number } | undefined {
+  const definition = SCREENSHOT_SCRIPT_STRING_FLAGS.find((entry) => entry.token === params.token);
+  if (!definition) return undefined;
+  const value = params.args[params.index + 1];
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new AppError('INVALID_ARGS', `${definition.label} requires a selector expression`);
+  }
+  params.flags[definition.key] = value;
   return { handled: true, nextIndex: params.index + 1 };
 }

@@ -2,13 +2,63 @@
 
 ## Unreleased
 
+- Added: polling `wait` timeouts (`wait <selector>`, `wait text`, `wait @ref`, and `wait absent`
+  after a readable capture) carry a per-poll timeline in `error.details` (`captures`, `polls[]`
+  with `startedMs`, `durationMs`, and a typed `outcome`: readable, unreadable, deadline,
+  runner-restart) next to the unchanged `reason`, so a failure says where its budget went without
+  opening the request log. Long waits keep the first five and last twenty-five polls. The replay
+  landmark-mismatch refusal carries the same poll evidence next to its mismatch details; `wait
+  --stable` timeouts and a never-readable strict absence keep their existing diagnostics.
+- Fixed: Android `orientation` now returns once the display reports the requested rotation
+  (polling `dumpsys display`, up to 15s) instead of right after writing the settings. On a loaded
+  emulator the rotation takes seconds, during which accessibility reads hang, so the next command
+  paid for the transition; a `wait` issued right after `orientation` could spend its whole budget
+  there. A display that never reaches the requested rotation now fails the command with the
+  observed rotation instead of reporting success; a display that reports no rotation is left to
+  the setting as before.
+- Fixed: the iOS Simulator AX snapshot route bounds how long a capture waits for app discovery
+  and stops starting a discovery per capture. Discovery (`simctl launchctl list` through xcrun)
+  takes seconds on a loaded host; a capture now waits at most 1.5s for the one in-flight
+  discovery, takes the XCTest fallback, and the discovery keeps running under its own 15s
+  deadline for the captures that follow. Previously each capture ran its own probe with a 3s
+  timeout on its critical path, so a `wait` issued right after `open` could spend its budget on
+  probe timeouts and report `wait_capture_stalled` with the app already on screen.
+- Fixed: iOS snapshots no longer report `truncated: true` merely because a later backend produced
+  them. The runner stamped every recovered capture as truncated — including a complete private-AX
+  tree taken while the XCTest channel was penalized as slow — so a strict `is absent` / `wait absent`
+  refused it with "capture was truncated" on loaded CI hosts. `truncated` now tracks completeness
+  only: payload truncation, a depth-limited capture, or a sparse terminal payload.
+- Fixed: Android `alert accept` / `alert dismiss` return only once the dialog has left the
+  accessibility tree (a different alert taking its place counts as dismissed), matching the iOS
+  runner's re-check. Previously they returned right after the button press, so the next read could
+  still see only the dialog window. A dialog that stays visible past the action budget now fails with
+  `alert <action> did not dismiss the visible alert`.
+- Added strict `wait absent <selector> [timeoutMs]` polling for zero selector matches. Incomplete,
+  sparse, truncated, scoped, depth-limited, and Android unreadable captures cannot prove absence;
+  deadline diagnostics retain typed capture evidence and stable first-match details (#2236).
+- Added: the device-claim store can hold an allocator-held claim (schema v3) for a device an
+  allocator-managed pool owns. It has no owning process, so `device status` lists it in the normal
+  view (never as stale), `device release --stale` refuses it with `allocator-held-owner`, the
+  daemon-startup sweep and session close leave it alone, and a command that binds the device
+  ordinarily is refused `DEVICE_IN_USE` / `DEVICE_CLAIM_ALLOCATOR_HELD`. Process-owned claim files
+  are unchanged at schema v2. Two notes for mixed installations: a daemon older than this release
+  reads a v3 file as an unreadable claim record and fails closed rather than clearing it, and
+  `devices` reports no `claimedBy` for such a device until the managed-inventory filter lands.
+- Added the `harmonyos-instance` lease contract and CLI/runtime plumbing as a prerequisite for
+  HarmonyOS proxy support; provider/daemon allocation remains gated until its end-to-end lifecycle
+  is implemented and validated (#2266).
+
 - Fixed: `settings airplane on|off` now takes an Android device offline. It is applied through
   the connectivity service (`cmd connectivity airplane-mode`), which drives the radios, instead of
   writing `airplane_mode_on` and broadcasting `ACTION_AIRPLANE_MODE_CHANGED` — a broadcast Android
   refuses for non-system callers, so the old path failed *after* writing the setting and left the
   device reporting airplane mode with the network still up (#2223). The response now reports the
-  `airplaneMode` the connectivity service holds after the change, and an Android build that does not
-  expose that command is refused with `UNSUPPORTED_OPERATION` before anything is written.
+   `airplaneMode` the connectivity service holds after the change, and an Android build that does not
+   expose that command is refused with `UNSUPPORTED_OPERATION` before anything is written.
+- Fixed: the MCP registry entry (`server.json`) now declares the fixed `mcp` subcommand via
+  `packageArguments`, so a registry-format launcher — the MCP Registry or the website's
+  `/.well-known/mcp.json` discovery manifest — starts the stdio MCP server. Previously it ran
+  `agent-device` with no subcommand, i.e. the bare CLI (#2275).
 - Breaking (0.21): iOS Appium/WebDriver snapshots now expose engine-owned acquisition facts and
   typed fidelity warnings. The SDK snapshot `truncated` field is optional when Appium cannot report
   hierarchy completeness; regular snapshots fail closed without valid viewport evidence, while

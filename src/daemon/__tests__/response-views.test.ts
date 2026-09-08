@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest';
 import { RESPONSE_VIEWS } from '../response-views.ts';
-import type { DaemonResponseData } from '../types.ts';
+import type { DaemonResponseData } from '../daemon-request.ts';
 
 const snapshotView = RESPONSE_VIEWS.snapshot;
 const screenshotView = RESPONSE_VIEWS.screenshot;
@@ -158,6 +158,28 @@ test('screenshot digest tolerates a path-only result with no overlay refs', () =
   expect(digest).toEqual({ path: '/tmp/s.png', overlayCount: 0, overlayRefs: [] });
 });
 
+test('screenshot digest keeps response-level warnings emitted once', () => {
+  const digest = screenshotView!(
+    {
+      path: '/tmp/s.png',
+      width: 40,
+      height: 20,
+      warnings: [
+        'CROP_PARTIAL_INTERSECTION: the selector frame extends past the captured image; the crop was clipped to the image frame',
+      ],
+    },
+    'digest',
+  );
+  expect(digest).toMatchObject({
+    path: '/tmp/s.png',
+    width: 40,
+    height: 20,
+    warnings: [
+      'CROP_PARTIAL_INTERSECTION: the selector frame extends past the captured image; the crop was clipped to the image frame',
+    ],
+  });
+});
+
 // A verbose matched node as it appears on the `find`/`get` wire: the semantic
 // attributes (kept) plus the geometry/index/process plumbing (the token sink).
 const MATCHED_NODE = {
@@ -276,6 +298,27 @@ test('get text digest keeps selector + text and drops the node', () => {
 test('get attrs digest compacts the node under a ref target', () => {
   const digest = getView!({ ref: 'e7', node: MATCHED_NODE }, 'digest');
   expect(digest).toEqual({ ref: 'e7', node: COMPACT_NODE });
+});
+
+test('attrs digest keeps explicit false/zero/empty field facts; unavailable ones stay absent (#2288)', () => {
+  const fieldFacts = {
+    value: '',
+    editable: false,
+    password: false,
+    hintShowing: false,
+    selectionStart: 0,
+    selectionEnd: 0,
+  };
+  const digest = getView!({ ref: 'e7', node: { ...MATCHED_NODE, ...fieldFacts } }, 'digest');
+  expect(digest.node).toEqual({ ...COMPACT_NODE, ...fieldFacts });
+  // MATCHED_NODE carries none of the field facts: the digest must not invent them.
+  const unavailable = getView!({ ref: 'e7', node: MATCHED_NODE }, 'digest').node as Record<
+    string,
+    unknown
+  >;
+  for (const field of Object.keys(fieldFacts)) {
+    if (field !== 'value') expect(field in unavailable).toBe(false);
+  }
 });
 
 test('find/get default and full return today’s shape unchanged (same reference)', () => {

@@ -13,7 +13,7 @@ import {
   publicPlatformString,
   type DeviceInfo,
 } from '@agent-device/kernel/device';
-import type { DaemonRequest, DaemonResponse } from '../types.ts';
+import type { DaemonRequest, DaemonResponse } from '../daemon-request.ts';
 import { SessionStore } from '../session-store.ts';
 import { resolveAndroidSerialAllowlist } from '@agent-device/kernel/device-isolation';
 import {
@@ -163,7 +163,6 @@ async function handleAppStateCommand(params: RuntimeCommandHandlerParams): Promi
   const device = await resolveCommandDevice({
     session,
     flags,
-    ensureReady: false,
   });
   if (isIosFamily(device)) {
     return errorResponse('SESSION_NOT_FOUND', IOS_APPSTATE_SESSION_REQUIRED_MESSAGE);
@@ -232,7 +231,6 @@ export async function handleSessionStateCommands(params: {
       device = await resolveCommandDevice({
         session,
         flags,
-        ensureReady: false,
         androidAvdSelection: 'include-stopped',
       });
     } catch (error) {
@@ -298,7 +296,6 @@ export async function handleSessionStateCommands(params: {
     if (guard) return guard;
 
     const device = await resolveCommandDevice({
-      ensureReady: false,
       flags,
       session: activeSession,
       androidAvdSelection: 'include-stopped',

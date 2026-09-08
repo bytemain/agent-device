@@ -3,7 +3,7 @@ import type {
   PerfNativeCaptureLiveHandle,
   PerfNativeCaptureRecoveryInput,
 } from '@agent-device/contracts/perf-runtime';
-import { perfNativeCaptureRecoveryUse } from '@agent-device/contracts/perf-runtime-plan';
+import { perfNativeCaptureRecoveryUse } from './perf-runtime-plan.ts';
 import type { DurableResourceEnvelope } from '@agent-device/contracts/durable-resource-envelope';
 import {
   type BoundDeviceRuntime,
@@ -12,10 +12,12 @@ import {
 } from '@agent-device/contracts/platform-runtime';
 import type { PlatformRequestScope } from '@agent-device/contracts/platform-runtime-host';
 import type { PlatformRuntimeOperations } from '@agent-device/contracts/platform-runtime-operations';
+import type {
+  DurableCaptureRecoveryControl,
+  DurableCaptureRecoveryDiagnostic,
+} from '@agent-device/capture-kit/durable-capture';
 import { perfCaptureDurableResource } from './perf-capture-session-resource.ts';
-import type { DurableCaptureRecoveryControl } from './durable-capture-recovery-authority.ts';
 import { acquireExactDurableCaptureRecoveryControl } from './durable-capture-runtime-recovery.ts';
-import type { DurableCaptureRecoveryDiagnostic } from './durable-capture-resource-recovery.ts';
 
 type PerfCaptureRecoveryRuntime = BoundDeviceRuntime<typeof perfNativeCaptureRecoveryUse>;
 

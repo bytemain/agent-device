@@ -1,7 +1,6 @@
 export {
   createDurableResourceEnvelope,
   decodeDeviceIdentity,
-  decodeDurableResourceEnvelope,
   encodeDurableDescriptor,
 } from './durable-resource-envelope.ts';
 export {
@@ -16,6 +15,7 @@ export { decodeDurableDescriptor } from './durable-descriptor-codec.ts';
 export { createScreenRecordingLiveHandle } from './screen-recording-live-handle.ts';
 export { createScreenRecordingCompletion } from './screen-recording-completion.ts';
 export { assertScreenRecordingOptionsSupported } from './screen-recording-options.ts';
+export { freezeJsonObject, isBoundedJsonObject } from './durable-json.ts';
 export {
   cleanupManagedAppLogProcess,
   reattachCleanupOnlyAppLogProcess,

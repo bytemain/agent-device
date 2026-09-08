@@ -21,6 +21,7 @@ import {
   specifierSites,
   type WorkspacePackage,
 } from './package-boundaries.ts';
+import { listTrackedTypeScriptFiles } from './tracked-sources.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');
 
@@ -46,127 +47,52 @@ const contracts: WorkspacePackage = {
 };
 
 const ALL = [kernel, contracts];
-const CONTRACT_EXPORTS = [
-  '@agent-device/contracts/alert-contract',
-  '@agent-device/contracts/alert-runtime',
-  '@agent-device/contracts/android-clipboard-support',
-  '@agent-device/contracts/android-helper-artifacts',
-  '@agent-device/contracts/android-input-ownership',
-  '@agent-device/contracts/android-observation',
-  '@agent-device/contracts/android-snapshot-quality',
-  '@agent-device/contracts/android-system-chrome',
-  '@agent-device/contracts/android-touch-plan',
-  '@agent-device/contracts/app-deployment-runtime',
-  '@agent-device/contracts/app-deployment-runtime-plan',
-  '@agent-device/contracts/app-event-runtime',
-  '@agent-device/contracts/app-inventory-runtime',
-  '@agent-device/contracts/app-log-runtime',
-  '@agent-device/contracts/app-state-runtime',
-  '@agent-device/contracts/app-switcher-runtime',
-  '@agent-device/contracts/apple-multitouch-support',
-  '@agent-device/contracts/apple-runner-request',
-  '@agent-device/contracts/application-lifecycle-interaction',
-  '@agent-device/contracts/application-lifecycle-runtime',
-  '@agent-device/contracts/application-lifecycle-runtime-plan',
-  '@agent-device/contracts/async-lifecycle',
-  '@agent-device/contracts/audio-probe-result',
-  '@agent-device/contracts/audio-probe-runtime',
-  '@agent-device/contracts/audio-probe-runtime-host',
-  '@agent-device/contracts/audio-probe-support',
-  '@agent-device/contracts/audio-runtime-plan',
-  '@agent-device/contracts/back-mode',
-  '@agent-device/contracts/backend-diagnostics',
-  '@agent-device/contracts/back-runtime',
-  '@agent-device/contracts/boot-failure',
-  '@agent-device/contracts/capture',
-  '@agent-device/contracts/click-button',
-  '@agent-device/contracts/client',
-  '@agent-device/contracts/clipboard',
-  '@agent-device/contracts/clipboard-runtime',
-  '@agent-device/contracts/command',
-  '@agent-device/contracts/command-platform-execution',
-  '@agent-device/contracts/device',
-  '@agent-device/contracts/device-readiness-runtime',
-  '@agent-device/contracts/device-shutdown-runtime',
-  '@agent-device/contracts/divergence',
-  '@agent-device/contracts/durable-resource',
-  '@agent-device/contracts/durable-resource-envelope',
-  '@agent-device/contracts/element-text-runtime',
-  '@agent-device/contracts/focus-runtime',
-  '@agent-device/contracts/gesture-admission',
-  '@agent-device/contracts/gesture-input',
-  '@agent-device/contracts/gesture-normalization',
-  '@agent-device/contracts/gesture-plan',
-  '@agent-device/contracts/gesture-plan-types',
-  '@agent-device/contracts/gesture-runtime',
-  '@agent-device/contracts/home-runtime',
-  '@agent-device/contracts/host-diagnostics',
-  '@agent-device/contracts/daemon-owner-cleanup',
-  '@agent-device/contracts/interaction',
-  '@agent-device/contracts/interaction-error',
-  '@agent-device/contracts/interaction-guarantees',
-  '@agent-device/contracts/interactor-operation-catalog',
-  '@agent-device/contracts/interactor-types',
-  '@agent-device/contracts/ios-snapshot',
-  '@agent-device/contracts/is-predicate',
-  '@agent-device/contracts/keyboard',
-  '@agent-device/contracts/keyboard-runtime',
-  '@agent-device/contracts/local-interactor-operation-set',
-  '@agent-device/contracts/logs-runtime-plan',
-  '@agent-device/contracts/managed-web-backend',
-  '@agent-device/contracts/navigation',
-  '@agent-device/contracts/network-runtime',
-  '@agent-device/contracts/network-runtime-plan',
-  '@agent-device/contracts/network-traffic',
-  '@agent-device/contracts/observability',
-  '@agent-device/contracts/orientation-runtime',
-  '@agent-device/contracts/perf-runtime',
-  '@agent-device/contracts/perf-runtime-host',
-  '@agent-device/contracts/perf-runtime-operation-builder',
-  '@agent-device/contracts/perf-runtime-plan',
-  '@agent-device/contracts/platform-module',
-  '@agent-device/contracts/platform-plugin',
-  '@agent-device/contracts/platform-providers',
-  '@agent-device/contracts/platform-resource-cleanup',
-  '@agent-device/contracts/platform-runtime',
-  '@agent-device/contracts/platform-runtime-host',
-  '@agent-device/contracts/platform-runtime-operations',
-  '@agent-device/contracts/platform-runtime-unavailable',
-  '@agent-device/contracts/progress',
-  '@agent-device/contracts/record-runtime-execution',
-  '@agent-device/contracts/recording',
-  '@agent-device/contracts/remote',
-  '@agent-device/contracts/replay',
-  '@agent-device/contracts/react-native-overlay',
-  '@agent-device/contracts/runner-lease-context',
-  '@agent-device/contracts/screen-recording-runtime',
-  '@agent-device/contracts/screen-recording-runtime-host',
-  '@agent-device/contracts/screen-recording-runtime-plan',
-  '@agent-device/contracts/screenshot-runtime',
-  '@agent-device/contracts/scroll-command',
-  '@agent-device/contracts/scroll-gesture',
-  '@agent-device/contracts/scroll-runtime',
-  '@agent-device/contracts/selector-observation-runtime',
-  '@agent-device/contracts/session',
-  '@agent-device/contracts/settings',
-  '@agent-device/contracts/settings-runtime',
-  '@agent-device/contracts/snapshot',
-  '@agent-device/contracts/snapshot-presentation',
-  '@agent-device/contracts/snapshot-runtime',
-  '@agent-device/contracts/snapshot-scope',
-  '@agent-device/contracts/snapshot-timeout-evidence',
-  '@agent-device/contracts/startup-recovery-fence',
-  '@agent-device/contracts/touch-runtime',
-  '@agent-device/contracts/tv-remote',
-  '@agent-device/contracts/tv-remote-runtime',
-  '@agent-device/contracts/type-text-runtime',
-  '@agent-device/contracts/viewport-runtime',
-  '@agent-device/contracts/wait',
-  '@agent-device/contracts/wait-runtime-plan',
-] as const;
 
 function rules(violations: { rule: string }[]): string[] {
   return violations.map((violation) => violation.rule);
+}
+
+/**
+ * The manifest is its own inventory for two checks: every `exports` target must resolve to an
+ * existing, TRACKED source file, and every manifest entry must have produced exactly one
+ * `exportTargets` entry (nothing dropped, nothing collapsed by a duplicate key). Neither check
+ * catches the export SURFACE itself widening or shrinking -- `pkg.exportTargets` and
+ * `manifest.exports` are read from the same file, so adding or removing a subpath moves both
+ * counts together and the equality holds regardless (#2297 review). `snapshotFile`, an
+ * independently committed baseline regenerated by `generate-contracts-exports-snapshot.ts`,
+ * restores that guarantee: it changes only when a contributor deliberately reruns the generator
+ * and reviews the diff, so a subpath added or removed without doing so fails here.
+ */
+function assertExportTargetsMatchManifest(
+  pkg: WorkspacePackage,
+  manifestFile: string,
+  snapshotFile: string,
+): void {
+  const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, manifestFile), 'utf8')) as {
+    exports?: Record<string, unknown>;
+  };
+  const trackedSources = new Set(listTrackedTypeScriptFiles(repoRoot));
+  for (const [specifier, target] of pkg.exportTargets) {
+    assert.ok(
+      trackedSources.has(target) && fs.existsSync(path.join(repoRoot, target)),
+      `${specifier} -> ${target} must resolve to an existing, tracked file`,
+    );
+  }
+  assert.equal(
+    pkg.exportTargets.size,
+    Object.keys(manifest.exports ?? {}).length,
+    `${pkg.name} exports map entries must each produce one resolved export target`,
+  );
+  const snapshot = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, snapshotFile), 'utf8'),
+  ) as string[];
+  assert.deepEqual(
+    [...pkg.exportTargets.keys()].sort(),
+    [...snapshot].sort(),
+    `${pkg.name}'s export surface no longer matches ${snapshotFile} -- regenerate it with ` +
+      `'node --experimental-strip-types scripts/layering/generate-contracts-exports-snapshot.ts' ` +
+      'and review the diff',
+  );
 }
 
 test('specifier sites carry 1-based lines for static and dynamic imports', () => {
@@ -450,7 +376,11 @@ test('the real tree parses, declares, and passes R11', () => {
   assert.ok(kernelPackage.exportTargets.size >= 8, 'kernel exports its vocabulary subpaths');
   const contractsPackage = packages.find((pkg) => pkg.name === '@agent-device/contracts');
   assert.ok(contractsPackage, 'contracts package must exist');
-  assert.deepEqual([...contractsPackage.exportTargets.keys()].sort(), [...CONTRACT_EXPORTS].sort());
+  assertExportTargetsMatchManifest(
+    contractsPackage,
+    'packages/contracts/package.json',
+    'scripts/layering/contracts-exports.snapshot.json',
+  );
   assert.deepEqual([...contractsPackage.workspaceDependencies], ['@agent-device/kernel']);
   const captureKitPackage = packages.find((pkg) => pkg.name === '@agent-device/capture-kit');
   assert.ok(captureKitPackage, 'capture-kit package must exist');
@@ -462,21 +392,28 @@ test('the real tree parses, declares, and passes R11', () => {
   );
   assert.deepEqual([...captureKitPackage.exportTargets.keys()].sort(), [
     '@agent-device/capture-kit',
+    '@agent-device/capture-kit/durable-capture',
+    '@agent-device/capture-kit/durable-json',
     '@agent-device/capture-kit/ios-snapshot-acquisition',
     '@agent-device/capture-kit/ios-snapshot-engine',
     '@agent-device/capture-kit/ios-snapshot-planning',
     '@agent-device/capture-kit/mobile-snapshot-semantics',
     '@agent-device/capture-kit/png',
+    '@agent-device/capture-kit/png-crop',
     '@agent-device/capture-kit/png-resize',
     '@agent-device/capture-kit/png-rgb-difference',
     '@agent-device/capture-kit/png-size',
     '@agent-device/capture-kit/png-worker-client',
+    '@agent-device/capture-kit/post-gesture-stability',
+    '@agent-device/capture-kit/react-native-overlay',
     '@agent-device/capture-kit/screenshot-density',
     '@agent-device/capture-kit/screenshot-diff-pixels',
+    '@agent-device/capture-kit/screenshot-overlay',
     '@agent-device/capture-kit/snapshot-desktop-projection',
     '@agent-device/capture-kit/snapshot-occlusion',
     '@agent-device/capture-kit/snapshot-quality-backend-capabilities',
     '@agent-device/capture-kit/snapshot-quality-verdict',
+    '@agent-device/capture-kit/snapshot-rect-projection',
   ]);
 
   const provisionKitPackage = packages.find((pkg) => pkg.name === '@agent-device/provision-kit');
@@ -495,6 +432,7 @@ test('the real tree parses, declares, and passes R11', () => {
     '@agent-device/provision-kit/install-source-config',
     '@agent-device/provision-kit/install-source-network',
     '@agent-device/provision-kit/install-source-network-transport',
+    '@agent-device/provision-kit/managed-device-scope',
     '@agent-device/provision-kit/toolchain-probe',
   ]);
   assert.deepEqual([...provisionKitPackage.workspaceDependencies].sort(), [
@@ -517,6 +455,10 @@ test('the real tree parses, declares, and passes R11', () => {
   );
   assert.deepEqual([...hostKitPackage.exportTargets.keys()].sort(), [
     '@agent-device/host-kit/archive',
+    // Test-only entry: the one inert audio-probe double the platform runtime fixtures share.
+    '@agent-device/host-kit/audio-probe-fixtures',
+    '@agent-device/host-kit/code-signature',
+    '@agent-device/host-kit/code-signature-cache',
     '@agent-device/host-kit/command',
     '@agent-device/host-kit/diagnostics',
     '@agent-device/host-kit/file',
@@ -549,6 +491,7 @@ test('the real tree parses, declares, and passes R11', () => {
     '@agent-device/platform-apple/runner/test-host',
     '@agent-device/platform-apple/simctl',
     '@agent-device/platform-apple/simulator',
+    '@agent-device/platform-apple/snapshot-source',
     '@agent-device/platform-apple/tool-provider',
   ]);
   assert.deepEqual([...platformApplePackage.workspaceDependencies].sort(), [
@@ -595,12 +538,14 @@ test('the real tree parses, declares, and passes R11', () => {
   ]);
   const adReplayPackage = packages.find((pkg) => pkg.name === '@agent-device/ad-replay');
   assert.ok(adReplayPackage, 'ad-replay package must exist');
-  // Locks the "exports only `.`" boundary: the stage-A wide façade and the
-  // `./testing` subpath (the deleted in-memory selector adapter) are both gone
-  // as of the direct selectors-package cutover — a future
-  // `./testing` (or any other) subpath widens this key list and fails the
-  // assertion.
-  assert.deepEqual([...adReplayPackage.exportTargets.keys()], ['@agent-device/ad-replay']);
+  // Locks the export surface: `.` (the engine) and `./divergence` (the
+  // divergence report/sanitization vocabulary, off the engine entry so CLI/MCP
+  // surfaces don't load the step loop). Any other subpath widens this key
+  // list and fails the assertion.
+  assert.deepEqual(
+    [...adReplayPackage.exportTargets.keys()],
+    ['@agent-device/ad-replay', '@agent-device/ad-replay/divergence'],
+  );
   assert.deepEqual([...adReplayPackage.workspaceDependencies].sort(), [
     '@agent-device/ad-script',
     '@agent-device/contracts',
@@ -647,17 +592,20 @@ test('the real tree parses, declares, and passes R11', () => {
   );
   const selectorsPackage = packages.find((pkg) => pkg.name === '@agent-device/selectors');
   assert.ok(selectorsPackage, 'selectors package must exist');
-  // Three subpaths, and each split is the point: `.` is the string-only façade
+  // Four subpaths, and each split is the point: `.` is the string-only façade
   // every in-repo consumer uses, `./ast` is the published parser surface that
   // `agent-device/selectors` has shipped since before the engine moved into
-  // this package, and `./engine` is the resolve/list surface reserved for the
+  // this package, `./engine` is the resolve/list surface reserved for the
   // selector-pipeline owner (R19, #1656) — a route reaching it skips the
-  // structural stages its policy row declares. A fourth subpath, or the AST
-  // leaking into `.`, fails here.
+  // structural stages its policy row declares — and
+  // `./parameterized-recorded-fill` is the recorded-fill parameterization the
+  // daemon used to own (#2340). A fifth subpath, or the AST leaking into `.`,
+  // fails here.
   assert.deepEqual([...selectorsPackage.exportTargets.keys()].sort(), [
     '@agent-device/selectors',
     '@agent-device/selectors/ast',
     '@agent-device/selectors/engine',
+    '@agent-device/selectors/parameterized-recorded-fill',
   ]);
   assert.deepEqual([...selectorsPackage.workspaceDependencies].sort(), [
     '@agent-device/ad-script',
@@ -710,10 +658,10 @@ test('the real tree parses, declares, and passes R11', () => {
     (pkg) => pkg.name === '@agent-device/provider-webdriver',
   );
   assert.ok(providerWebDriverPackage, 'provider-webdriver package must exist');
-  assert.deepEqual(
-    [...providerWebDriverPackage.exportTargets.keys()],
-    ['@agent-device/provider-webdriver'],
-  );
+  assert.deepEqual([...providerWebDriverPackage.exportTargets.keys()].sort(), [
+    '@agent-device/provider-webdriver',
+    '@agent-device/provider-webdriver/providers',
+  ]);
   assert.deepEqual([...providerWebDriverPackage.workspaceDependencies].sort(), [
     '@agent-device/capture-kit',
     '@agent-device/contracts',
@@ -834,27 +782,11 @@ test('Node resolution enforces the exports map at runtime', () => {
     contractsSnapshotResolved.endsWith('packages/contracts/src/facades/snapshot.ts'),
     contractsSnapshotResolved,
   );
-  const contractsSnapshotPresentationResolved = import.meta
-    .resolve('@agent-device/contracts/snapshot-presentation');
-  assert.ok(
-    contractsSnapshotPresentationResolved.endsWith(
-      'packages/contracts/src/snapshot-presentation.ts',
-    ),
-    contractsSnapshotPresentationResolved,
-  );
   const contractsReactNativeOverlayResolved = import.meta
     .resolve('@agent-device/contracts/react-native-overlay');
   assert.ok(
     contractsReactNativeOverlayResolved.endsWith('packages/contracts/src/react-native-overlay.ts'),
     contractsReactNativeOverlayResolved,
-  );
-  const contractsSnapshotTimeoutEvidenceResolved = import.meta
-    .resolve('@agent-device/contracts/snapshot-timeout-evidence');
-  assert.ok(
-    contractsSnapshotTimeoutEvidenceResolved.endsWith(
-      'packages/contracts/src/snapshot-timeout-evidence.ts',
-    ),
-    contractsSnapshotTimeoutEvidenceResolved,
   );
   const providerWebDriverResolved = import.meta.resolve('@agent-device/provider-webdriver');
   assert.ok(

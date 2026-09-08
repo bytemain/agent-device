@@ -132,6 +132,33 @@ describe('capture command interface', () => {
     expectInvalidArgs(() => waitDaemonWriter({ text: 'Ready', ref: '@e1' }), 'exactly one');
   });
 
+  test('reads and writes strict wait absent targets', () => {
+    expect(waitCliReader(['absent', 'label="Removed"', '5000'], flags())).toMatchObject({
+      absent: 'label="Removed"',
+      timeoutMs: 5000,
+    });
+    expect(waitDaemonWriter({ absent: 'label="Removed"', timeoutMs: 5000 })).toMatchObject({
+      command: 'wait',
+      positionals: ['absent', 'label="Removed"', '5000'],
+    });
+  });
+
+  test('refuses wait absent scope and depth with typed invalid arguments', () => {
+    expectInvalidArgs(
+      () => waitCliReader(['absent', 'label="Removed"'], flags({ snapshotScope: 'Root' })),
+      '--scope',
+    );
+    expectInvalidArgs(
+      () => waitCliReader(['absent', 'label="Removed"'], flags({ snapshotDepth: 2 })),
+      '--depth',
+    );
+    expectInvalidArgs(
+      () => waitDaemonWriter({ absent: 'label="Removed"', scope: 'Root' }),
+      '--scope',
+    );
+    expectInvalidArgs(() => waitDaemonWriter({ absent: 'label="Removed"', depth: 2 }), '--depth');
+  });
+
   test('reads and writes wait stable with defaults', () => {
     expect(waitCliReader(['stable'], flags())).toMatchObject({ stable: true });
     expect(waitDaemonWriter({ stable: true })).toMatchObject({

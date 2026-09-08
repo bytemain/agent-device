@@ -45,10 +45,14 @@ export function absenceCaptureOptionRefusal(options: {
   return undefined;
 }
 
-export function absenceCaptureOptionMessage(option: AbsenceCaptureOption): string {
+export function absenceCaptureOptionMessage(
+  option: AbsenceCaptureOption,
+  command: 'is' | 'wait' = 'is',
+): string {
+  const surface = `${command} absent`;
   return option === 'scope'
-    ? 'is absent does not support --scope; it requires an unscoped capture'
-    : 'is absent does not support --depth; it requires a full-depth capture';
+    ? `${surface} does not support --scope; it requires an unscoped capture`
+    : `${surface} does not support --depth; it requires a full-depth capture`;
 }
 
 export function classifyAbsenceObservation(

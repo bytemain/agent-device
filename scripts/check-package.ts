@@ -26,6 +26,7 @@ import {
   auditDependencyClosure,
   type PackedManifest as PackedDependencies,
 } from './lib/shipped-imports.ts';
+import { assertInstalledSnapshotBridge } from './size-report-install.mjs';
 
 type PackedManifest = PackedDependencies & {
   exports: Record<string, unknown>;
@@ -34,6 +35,9 @@ type PackedManifest = PackedDependencies & {
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const packDestinationFlag = '--pack-destination';
+const verifySnapshotBridgePreparation = process.argv.includes(
+  '--verify-snapshot-bridge-preparation',
+);
 const suppliedPackDestination = process.argv
   .slice(2)
   .find((arg, index, args) => (args[index - 1] === packDestinationFlag ? arg : undefined));
@@ -177,6 +181,25 @@ try {
   const tarball = packTarball();
   lintTarball(tarball);
   const installedRoot = installIntoCleanConsumer(tarball);
+  assertInstalledSnapshotBridge(installedRoot);
+  if (verifySnapshotBridgePreparation) {
+    if (process.platform !== 'darwin') {
+      throw new Error('--verify-snapshot-bridge-preparation requires macOS and Xcode.');
+    }
+    run(
+      'pnpm',
+      [
+        '--filter',
+        '@agent-device/platform-apple',
+        'run',
+        'verify-installed-snapshot-bridge',
+        installedRoot,
+        path.join(workDir, 'snapshot-bridge-cache'),
+      ],
+      repoRoot,
+    );
+    step('Prepared the Simulator snapshot bridge from the clean-installed package.');
+  }
   const manifest = JSON.parse(
     fs.readFileSync(path.join(installedRoot, 'package.json'), 'utf8'),
   ) as PackedManifest;

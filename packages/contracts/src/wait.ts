@@ -6,8 +6,9 @@
  * `wait_capture_stalled` means no readable capture established an observation
  * before the deadline and is retriable. `wait_deadline_exceeded` means a later
  * capture consumed the remaining budget after at least one readable capture.
- * `wait_target_absent` is the only ordinary absence verdict and therefore
- * always carries readable-capture evidence. The remaining reasons describe
+ * `wait_target_absent` is the ordinary timeout reason for a selector that was
+ * never found. `wait_target_present` is the strict-absence timeout reason when
+ * valid captures still contain matches. The remaining reasons describe
  * stability and replay-landmark refusals.
  */
 export const WAIT_REASONS = {
@@ -15,6 +16,7 @@ export const WAIT_REASONS = {
   deadlineExceeded: 'wait_deadline_exceeded',
   runnerRestartExhausted: 'wait_runner_restart_exhausted',
   targetAbsent: 'wait_target_absent',
+  targetPresent: 'wait_target_present',
   stableTimeout: 'wait_stable_timeout',
   landmarkIdentityMismatch: 'wait_landmark_identity_mismatch',
 } as const;

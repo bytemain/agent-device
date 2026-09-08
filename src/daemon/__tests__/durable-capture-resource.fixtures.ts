@@ -11,8 +11,8 @@ import { createDurableCaptureResource } from '../durable-capture-resource.ts';
 import {
   createDurableCaptureResourceStore,
   type DurableCaptureResourceStore,
-} from '../durable-capture-resource-store.ts';
-import type { SessionState } from '../types.ts';
+} from '@agent-device/capture-kit/durable-capture';
+import type { SessionState } from '../session-state.ts';
 
 export const testCaptureStore = createDurableCaptureResourceStore({
   resourceKind: 'app-log',

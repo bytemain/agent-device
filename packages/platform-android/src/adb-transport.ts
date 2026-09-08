@@ -3,8 +3,8 @@ import type { Rect } from '@agent-device/kernel/snapshot';
 import type {
   AndroidImeHelperArtifact,
   AndroidSnapshotHelperArtifact,
-} from '@agent-device/contracts/android-helper-artifacts';
-import type { AndroidProviderTouchPlan } from '@agent-device/contracts/android-touch-plan';
+} from './helper-artifacts.ts';
+import type { AndroidProviderTouchPlan } from './touch-plan-lowering.ts';
 
 // The adb transport vocabulary: the executor/provider shapes every module of the cluster (and
 // the SDK, through the root shim) speaks, plus the one pure lowering from semantic install
@@ -16,6 +16,8 @@ export type AndroidAdbExecutorOptions = {
   binaryStdout?: boolean;
   stdin?: string | Buffer;
   signal?: AbortSignal;
+  env?: Record<string, string | undefined>;
+  serverPort?: number;
 };
 
 export type AndroidAdbExecutorResult = {
@@ -30,7 +32,6 @@ type AndroidAdbStdioOption = 'overlapped' | 'pipe' | 'ignore' | 'inherit';
 
 export type AndroidAdbSpawnOptions = AndroidAdbExecutorOptions & {
   cwd?: string;
-  env?: Record<string, string | undefined>;
   detached?: boolean;
   /** Max stdout/stderr bytes for synchronous runs (default Node ~1MB). */
   maxBuffer?: number;
@@ -184,6 +185,7 @@ export type AndroidAdbProvider = AndroidAdbProviderBase & AndroidTouchCapabiliti
 
 export type AndroidAdbProviderScopeOptions = {
   serial: string;
+  serverPort?: number;
 };
 
 export type ScopedAndroidAdbBackgroundTransport =

@@ -1,4 +1,4 @@
-import { expect, test, vi } from 'vitest';
+import { beforeEach, expect, test, vi } from 'vitest';
 import { applicationLifecycleOperationFacts } from '@agent-device/contracts/application-lifecycle-runtime';
 import {
   appLogAdmissionUse,
@@ -7,16 +7,27 @@ import {
 import { networkDumpUse } from '@agent-device/contracts/network-runtime-plan';
 import {
   type DeviceBinding,
+  type DeviceBindingIntent,
   type DeviceRuntimeGateway,
+  type RuntimeOwnerRef,
   localRuntimeOwner,
+  managedLocalRuntimeOwner,
+  providerRuntimeOwner,
 } from '@agent-device/contracts/platform-runtime';
 import type { PlatformRuntimeOperations } from '@agent-device/contracts/platform-runtime-operations';
 import { screenRecordingRecoveryUse } from '@agent-device/contracts/screen-recording-runtime-plan';
 import type { DeviceInfo } from '@agent-device/kernel/device';
 import { unavailableDeploymentSnapshotAndShutdownOperationFacts } from '../../__tests__/test-utils/runtime-operation-facts.ts';
 import { createDurableResourceEnvelope } from '@agent-device/capture-kit';
-import { acquireDurableCaptureRecoveryAuthorityBeforeDeadline } from '../durable-capture-recovery-authority.ts';
-import { createRequestRuntimeBindings } from '../request-runtime-binding.ts';
+import { acquireDurableCaptureRecoveryAuthorityBeforeDeadline } from '@agent-device/capture-kit/durable-capture';
+import {
+  createRequestRuntimeBindings,
+  ensureBoundDeviceReady,
+} from '../request-runtime-binding.ts';
+import { ensureDeviceReady } from '../device-ready.ts';
+import { admitRuntimeUse } from '../runtime-admission.ts';
+
+vi.mock('../device-ready.ts', () => ({ ensureDeviceReady: vi.fn(async () => {}) }));
 
 const inspectPlan = resolveLogsRuntimePlan({ action: 'path' });
 const doctorPlan = resolveLogsRuntimePlan({ action: 'doctor' });
@@ -33,13 +44,82 @@ const scope = {
 };
 
 const admitDeviceClaim = async () => {};
+const mockEnsureDeviceReady = vi.mocked(ensureDeviceReady);
 
-test('request runtime binding caches one broad owner and projects each declared use', async () => {
+beforeEach(() => {
+  mockEnsureDeviceReady.mockReset();
+  mockEnsureDeviceReady.mockResolvedValue(undefined);
+});
+
+test('bound readiness preserves local behavior after the binding fence', async () => {
+  const selected = device('ready-after-bind');
+  const options = { focusExisting: true };
+
+  await ensureBoundDeviceReady({ device: selected, owner: localRuntimeOwner('android') }, options);
+
+  expect(mockEnsureDeviceReady).toHaveBeenCalledWith(selected, options);
+});
+
+test('bound readiness leaves provider-owned devices alone', async () => {
+  await ensureBoundDeviceReady({
+    device: device('provider-ready'),
+    owner: providerRuntimeOwner('test', 'provider-ready'),
+  });
+
+  expect(mockEnsureDeviceReady).not.toHaveBeenCalled();
+});
+
+test('bound readiness refuses managed devices without allocator confirmation', async () => {
+  await expect(
+    ensureBoundDeviceReady({
+      device: device('managed-ready'),
+      owner: managedLocalRuntimeOwner('simlock-test'),
+    }),
+  ).rejects.toMatchObject({
+    code: 'UNSUPPORTED_OPERATION',
+    details: { reason: 'managed-readiness-unavailable' },
+  });
+  expect(mockEnsureDeviceReady).not.toHaveBeenCalled();
+});
+
+test('runtime readiness follows allocator claim admission', async () => {
+  const events: string[] = [];
   const runtime = makeGateway();
+  const admit = vi.fn(async () => {
+    events.push('claim');
+  });
   const bindings = createRequestRuntimeBindings({
     gateway: runtime.gateway,
     scope,
-    admitDeviceClaim,
+    admitDeviceClaim: admit,
+  });
+  mockEnsureDeviceReady.mockImplementation(async () => {
+    events.push('ready');
+  });
+
+  const admission = await admitRuntimeUse({
+    command: 'logs',
+    device: device('claim-order'),
+    use: appLogInspectUse,
+    inspectFacts: bindings.inspectFacts,
+    bindDevice: bindings.bindDevice,
+    readiness: {},
+  });
+
+  expect(admission.type).toBe('runtime');
+  expect(events).toEqual(['claim', 'ready']);
+  await bindings[Symbol.asyncDispose]();
+});
+
+test('request runtime binding caches one broad owner and projects each declared use', async () => {
+  const runtime = makeGateway();
+  const admit = vi.fn(
+    async (_device: DeviceInfo, _owner: RuntimeOwnerRef, _intent: DeviceBindingIntent) => {},
+  );
+  const bindings = createRequestRuntimeBindings({
+    gateway: runtime.gateway,
+    scope,
+    admitDeviceClaim: admit,
   });
 
   const admission = await bindings.bindDevice(device('one'), appLogAdmissionUse);
@@ -48,6 +128,10 @@ test('request runtime binding caches one broad owner and projects each declared 
   const network = await bindings.bindDevice(device('one'), networkDumpUse);
 
   expect(runtime.bind).toHaveBeenCalledOnce();
+  // Claim admission receives the ordinary intent the gateway bound, once per device.
+  expect(admit).toHaveBeenCalledOnce();
+  expect(admit.mock.calls[0]?.[2]).toEqual({ kind: 'ordinary' });
+  expect(admit.mock.calls[0]?.[2]).toBe(runtime.bind.mock.calls[0]?.[0].intent);
   expect(admission.operations.appLogInspect).toBe(runtime.operations.appLogInspect);
   expect(Object.keys(inspect.operations)).toEqual(['appLogInspect']);
   expect(Object.keys(doctor.operations)).toEqual(['appLogInspect', 'appLogDoctor']);
@@ -126,10 +210,13 @@ test('preferred absence is visible without failing while required absence fails 
 
 test('exact-owner recovery binds the persisted owner and fence without ordinary arbitration', async () => {
   const runtime = makeGateway();
+  const admit = vi.fn(
+    async (_device: DeviceInfo, _owner: RuntimeOwnerRef, _intent: DeviceBindingIntent) => {},
+  );
   const bindings = createRequestRuntimeBindings({
     gateway: runtime.gateway,
     scope,
-    admitDeviceClaim,
+    admitDeviceClaim: admit,
   });
   const selected = device('one');
   const owner = localRuntimeOwner('android');
@@ -156,6 +243,10 @@ test('exact-owner recovery binds the persisted owner and fence without ordinary 
     intent: { kind: 'exact-owner', owner, fence },
     scope: recoveryScope,
   });
+  // Claim admission receives the exact-owner intent with its fence, the same object the
+  // gateway bound.
+  expect(admit).toHaveBeenCalledWith(selected, owner, { kind: 'exact-owner', owner, fence });
+  expect(admit.mock.calls[0]?.[2]).toBe(runtime.bind.mock.calls[0]?.[0].intent);
   await bindings[Symbol.asyncDispose]();
   expect(runtime.disposals).toEqual(['one']);
 });

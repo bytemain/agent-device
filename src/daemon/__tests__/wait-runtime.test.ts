@@ -26,7 +26,7 @@ import { unavailableDeploymentSnapshotAndShutdownOperationFacts } from '../../__
 import type { BindDeviceRuntime, InspectDeviceRuntimeFacts } from '../request-runtime-binding.ts';
 import { handleSnapshotCommands } from '../handlers/snapshot.ts';
 import { resolveBoundSelectorCapture } from '../selector-capture-binding.ts';
-import type { DaemonRequest } from '../types.ts';
+import type { DaemonRequest } from '../daemon-request.ts';
 
 const webDevice = {
   id: 'web',
@@ -265,6 +265,28 @@ test('a stable wait binds the capture use once and polls through the bound opera
   expect(harness.inspectFacts).toHaveBeenCalledTimes(1);
   expect(harness.bindDevice).toHaveBeenCalledTimes(1);
   expect(harness.bindDevice).toHaveBeenCalledWith(harness.device, waitWithoutActiveAppUse);
+});
+
+test.each([
+  ['scope', { snapshotScope: 'Root' }],
+  ['depth', { snapshotDepth: 2 }],
+])('strict wait absent refuses --%s before device admission', async (_option, flags) => {
+  const harness = waitRuntimeHarness();
+
+  const { response } = await runWait(['absent', 'label="Ready"', '400'], harness, [], flags);
+
+  expect(response).toMatchObject({
+    ok: false,
+    error: {
+      code: 'INVALID_ARGS',
+      details: { command: 'wait', predicate: 'absent' },
+    },
+  });
+  if (!response.ok) {
+    expect(response.error.details?.rejectedOption).toBe(_option);
+  }
+  expect(harness.inspectFacts).not.toHaveBeenCalled();
+  expect(harness.bindDevice).not.toHaveBeenCalled();
 });
 
 // ---------------------------------------------------------------------------
@@ -533,6 +555,18 @@ test('a stalled capture reports capture-stalled with no readable captures', asyn
   expect(response.error.details?.readableCaptures).toBe(0);
 });
 
+test('strict wait absent reports capture-stalled when every capture stalls', async () => {
+  const stalling = stallingCapture();
+  const harness = waitRuntimeHarness({ captureSnapshot: stalling.captureSnapshot });
+
+  const { response } = await runWait(['absent', 'label="Ready"', '150'], harness);
+
+  expect(response.ok).toBe(false);
+  if (response.ok) return;
+  expect(response.error.details?.reason).toBe(WAIT_REASONS.captureStalled);
+  expect(response.error.details?.readableCaptures).toBe(0);
+});
+
 test('a runner restart that exhausts the wait reports typed restart evidence', async () => {
   const captureSnapshot = vi.fn(async (input: CaptureSnapshotInput) => {
     const signal = input.signal;
@@ -572,6 +606,68 @@ test('a runner restart that exhausts the wait reports typed restart evidence', a
     readableCaptures: 0,
   });
   expect(response.error.details?.captureStalled).toBeUndefined();
+});
+
+test('strict wait absent preserves runner-restart exhaustion as the deadline reason', async () => {
+  const captureSnapshot = vi.fn(async (input: CaptureSnapshotInput) => {
+    const signal = input.signal;
+    if (!signal) throw new Error('the poll deadline never reached the platform');
+    await new Promise<void>((resolve) => {
+      if (signal.aborted) return resolve();
+      signal.addEventListener('abort', () => resolve(), { once: true });
+    });
+    throw new AppError('COMMAND_FAILED', 'request canceled', {
+      runnerRestarted: true,
+      runnerRestartReason: 'runner_readiness_preflight_failed_before_command_send',
+      runnerRestartCommand: 'snapshot',
+    });
+  });
+  const harness = waitRuntimeHarness({ captureSnapshot });
+
+  const { response } = await runWait(['absent', 'label="Ready"', '50'], harness);
+
+  expect(response.ok).toBe(false);
+  if (response.ok) return;
+  expect(response.error.details?.reason).toBe(WAIT_REASONS.runnerRestartExhausted);
+  expect(response.error.details?.readableCaptures).toBe(0);
+});
+
+test('strict wait absent does not mask a runner restart after an earlier present capture', async () => {
+  let poll = 0;
+  const captureSnapshot = vi.fn(async (input: CaptureSnapshotInput) => {
+    if (poll++ === 0) {
+      return {
+        nodes: [{ index: 0, depth: 0, type: 'Button', label: 'Ready', hittable: true }],
+        backend: 'web' as const,
+        producer: 'agent-browser' as const,
+      };
+    }
+    const signal = input.signal;
+    if (!signal) throw new Error('the poll deadline never reached the platform');
+    await new Promise<void>((resolve) => {
+      if (signal.aborted) return resolve();
+      signal.addEventListener('abort', () => resolve(), { once: true });
+    });
+    throw new AppError('COMMAND_FAILED', 'request canceled', {
+      runnerRestarted: true,
+      runnerRestartReason: 'runner_readiness_preflight_failed_before_command_send',
+      runnerRestartCommand: 'snapshot',
+    });
+  });
+  const harness = waitRuntimeHarness({ captureSnapshot });
+
+  const { response } = await runWait(['absent', 'label="Ready"', '800'], harness);
+
+  expect(response.ok).toBe(false);
+  if (response.ok) return;
+  expect(response.error.details).toMatchObject({
+    reason: WAIT_REASONS.runnerRestartExhausted,
+    waitRunnerRestartExhausted: true,
+    runnerRestarted: true,
+    retriable: true,
+    readableCaptures: 1,
+  });
+  expect(response.error.details?.reason).not.toBe(WAIT_REASONS.targetPresent);
 });
 
 test('a readable capture that lacks the target stays target-absent, not capture-stalled', async () => {

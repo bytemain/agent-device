@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import { test } from 'vitest';
 
 const SIMPLE_PUBLISHERS = [
-  new URL('../device-claims.ts', import.meta.url),
+  // device-claims.ts delegates every write to device-claim-store.ts's writeDeviceClaim, the
+  // single writer shared by the process-owned and allocator-held claim kinds.
+  new URL('../device-claim-store.ts', import.meta.url),
   new URL('../daemon-shutdown-report.ts', import.meta.url),
   new URL('../provider-lease-expiry.ts', import.meta.url),
   new URL('../session-script-writer.ts', import.meta.url),
@@ -20,14 +22,18 @@ test('simple same-directory publishers use the shared atomic publish owner', () 
   }
 });
 
-test('durable capture publication keeps its specialized fsync and destination checks', () => {
-  const source = fs.readFileSync(
-    new URL('../durable-capture-resource-store.ts', import.meta.url),
-    'utf8',
-  );
-  assert.match(source, /withAtomicPublishTempPathSync/);
-  assert.match(source, /fs\.openSync\([^\n]+['"]wx['"]/);
-  assert.match(source, /fs\.fsyncSync/);
-  assert.match(source, /fs\.renameSync/);
-  assert.match(source, /assertSafeDestination/);
+test('durable publishers share the host-kit durable publication owner', () => {
+  const sourcePaths = [
+    new URL('../../../packages/capture-kit/src/durable-capture/store.ts', import.meta.url),
+    new URL('../../../packages/managed-allocation/src/store-filesystem.ts', import.meta.url),
+  ];
+  for (const sourcePath of sourcePaths) {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+    assert.match(source, /publishDurableFileSync/);
+    assert.doesNotMatch(
+      source,
+      /fs\.(?:openSync|writeFileSync|fsyncSync|renameSync|linkSync)\s*\(/,
+    );
+    assert.doesNotMatch(source, /assertSafeDestination/);
+  }
 });

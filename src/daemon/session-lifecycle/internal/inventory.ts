@@ -1,7 +1,7 @@
 import {
   commandRuntimeUseRequirements,
   listRuntimeFactCommands,
-} from '../../../core/command-descriptor/registry.ts';
+} from '@agent-device/command-registry/registry';
 import { listDeviceInventory } from '../../../request/device-inventory-context.ts';
 import { assertResolvedAppsFilter } from '@agent-device/contracts/device';
 import { AppError, asAppError } from '@agent-device/kernel/errors';
@@ -25,8 +25,10 @@ import {
 } from '../../device-claim-inspection.ts';
 import { canonicalLocalDeviceKey } from '../../device-claim-paths.ts';
 import { deviceClaimIdentity } from '../../device-claims.ts';
-import type { DaemonRequest, DaemonResponse, SessionRef } from '../../types.ts';
-import { resolveSessionRunnerLogPath, SessionStore } from '../../session-store.ts';
+import type { DaemonRequest, DaemonResponse } from '../../daemon-request.ts';
+import type { SessionRef } from '../../session-state.ts';
+import { SessionStore } from '../../session-store.ts';
+import { resolveSessionRunnerLogPath } from '../../session-artifact-paths.ts';
 import {
   requireSessionOrExplicitSelector,
   resolveCommandDevice,
@@ -238,7 +240,6 @@ async function capabilitiesInventoryResponse(params: {
 }): Promise<DaemonResponse> {
   const resolution = await resolveInventoryCommandDevice({
     ...params,
-    ensureReady: false,
     androidAvdSelection: 'include-stopped',
   });
   if ('response' in resolution) return resolution.response;
@@ -341,7 +342,6 @@ async function handleAppsInventory(params: {
     req,
     sessionName,
     sessionStore,
-    ensureReady: false,
     androidAvdSelection: 'include-stopped',
   });
   if ('response' in resolution) return resolution.response;
@@ -452,10 +452,9 @@ async function resolveInventoryCommandDevice(params: {
   req: DaemonRequest;
   sessionName: string;
   sessionStore: SessionStore;
-  ensureReady: boolean;
   androidAvdSelection?: 'running-only' | 'include-stopped';
 }): Promise<{ device: DeviceInfo } | { response: DaemonResponse }> {
-  const { req, sessionName, sessionStore, ensureReady, androidAvdSelection } = params;
+  const { req, sessionName, sessionStore, androidAvdSelection } = params;
   const session = sessionStore.get(sessionName);
   const flags = req.flags ?? {};
   const response = requireSessionOrExplicitSelector(req.command, session, flags);
@@ -465,7 +464,6 @@ async function resolveInventoryCommandDevice(params: {
     device: await resolveCommandDevice({
       session,
       flags,
-      ensureReady,
       androidAvdSelection,
     }),
   };

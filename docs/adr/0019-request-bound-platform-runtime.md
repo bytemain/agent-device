@@ -863,3 +863,90 @@ execution shapes and permanent structural policies.
 - **Rely only on performance thresholds for lazy loading:** rejected. Thresholds catch regressions
   late and can pass while unrelated implementation graphs load; the import/evaluation shape is also
   contract-tested.
+
+## End state (proposed 2026-09-02, maintainer decision pending)
+
+The targets below are proposed defaults, not an accepted commitment. No tracking issue or Status
+line authorizes work against them yet; they exist to give the next migration wave a numeric
+baseline and are open for revision or rejection.
+
+**Daemon top-level footprint.** `git ls-tree --name-only origin/main src/daemon/ | grep -E
+'\.ts$' | grep -vE '\.test\.ts$' | wc -l` measured 199 production files at `e624ef9d3f`. Proposed
+target: ≤ 60. `src/daemon/**` is a permanent zone under R65; the target is about what remains
+there, not about retiring the directory.
+
+**Entry-to-platform hop count.** Corrected 2026-09-03: the counting definition, ordered chains,
+and commit for this measurement are in
+[`0019-end-state-hop-trace.md`](./0019-end-state-hop-trace.md), which supersedes the number
+below. A file-by-file re-trace at HEAD measured 23 hops for `press`/Android and 24 hops for
+`snapshot`/iOS. The previously stated 38/29 named no ordered chain, counting definition, or
+artifact and does not reproduce; treat it as superseded, not as a second data point.
+`src/platform-runtime.ts` (the
+immutable registry construction) and each platform façade's `loadRuntime` pairing are declared
+boundaries under Decision §1 and §2, not pass-through layers — they stay in any hop count
+regardless of target. Everything else on the traced path is a pass-through candidate only insofar
+as R13's named-facet enumeration and the
+`kernel < contracts < host-kit < capture-kit < provision-kit < platform/provider/daemon` direction
+already allow collapsing it; a hop that exists only to satisfy that direction is not waste.
+Proposed target: ≤ 14 hops each — the hop-trace artifact derives this as plausible for `press`
+under an aggressive, not-yet-accepted collapsing plan, and not clearly reachable for `snapshot`
+without cutting into load-bearing XCTest runner-protocol mechanics; **treat 14 as a proposed
+target, unverified**, not a derived number.
+
+**Zones still under `src/` that this ADR expects to leave, and their package status:**
+
+- `src/platform-runtime-*.ts` (~70 files: Android/Apple/screen-recording/perf/network/app-log/
+  app-state/toolchain/device-inventory hosts). Mixed ownership: Android's deployment, logs,
+  network, perf, readiness, recording, and shutdown domains already have package homes under
+  `packages/platform-android/src/`; Apple's equivalents live under `packages/platform-apple/src/`.
+  The root files that remain are either declared host-port adapters (e.g. `adb-host`, bound only
+  by its named root file per Decision §1) or mechanics whose wave has not landed yet — the two are
+  not distinguished by filename and need per-file classification before a target is set.
+- `src/recording`, `src/snapshot`, `src/snapshot-quality`, `src/screenshot-diff`. Corrected
+  2026-09-03: `packages/capture-kit/src/` already has broad production ownership across
+  recording (`screen-recording-live-handle.ts`, `screen-recording-completion.ts`,
+  `screen-recording-options.ts`, consumed by `platform-android`/`platform-apple`/
+  `platform-harmonyos`/`platform-web`'s `recording/runtime.ts`), screenshot/diff
+  (`png.ts`, `png-worker-client.ts`, imported by `src/screenshot-diff/screenshot-diff.ts`),
+  snapshot quality (`snapshot-quality-verdict.ts`, `snapshot-quality-backend-capabilities.ts` —
+  `src/snapshot-quality/` now holds only a cross-package regression test, no production file),
+  occlusion (`snapshot-occlusion.ts`), audio/app-log (`audio-probe-runtime.ts`,
+  `app-log-live-handle.ts`, consumed by `platform-android`, `platform-apple`, and
+  `provider-limrun`), and iOS acquisition/engine (`ios-snapshot-acquisition.ts`,
+  `ios-snapshot-planning.ts`, `ios-snapshot-engine/`, consumed by
+  `src/snapshot/ios-snapshot-runtime.ts`). ADR §1's amendment already assigns this capture
+  domain to `capture-kit`; the domain mechanics are migrated. What remains under `src/` in
+  these four directories, verified file-by-file at HEAD, is daemon-facing composition with no
+  existing package equivalent, not unmigrated capture mechanics:
+  - `src/recording/{output-path,overlay,swift-cache,telemetry,video,video-webm}.ts` — video
+    playability polling, overlay burn-in, telemetry persistence, and output-path resolution,
+    imported only by `src/platform-runtime-screen-recording-*.ts` and
+    `src/daemon/handlers/record-runtime*.ts`. Equivalent: none.
+  - `src/snapshot/ios-snapshot-runtime.ts` and `snapshot-visibility.ts` — composition over the
+    capture-kit acquisition/planning/engine/semantics calls above. Equivalent: capture-kit
+    (mechanics already migrated; these are the composition callers).
+  - `src/snapshot/{android-replacement-surface-occlusion,rect-coverage,scroll-edge-state,
+    snapshot-desktop-surface,snapshot-diff,snapshot-evidence,snapshot-label-dedup,
+    snapshot-lines,snapshot-node-label,snapshot-timeout-policy}.ts` — none import capture-kit.
+    `android-replacement-surface-occlusion.ts` implements a distinct Android-specific
+    footprint algorithm, not the generic viewport pruning in capture-kit's
+    `snapshot-occlusion.ts`. Equivalent: none.
+  - `src/snapshot-quality/__tests__/warnings.test.ts` — the sole survivor in that directory;
+    exercises `renderSnapshotQualityWarnings` (root) against capture-kit's
+    `readSnapshotQualityVerdict`. Equivalent: capture-kit (production logic fully migrated).
+  - `src/screenshot-diff/*.ts` (region split/overlay/summarization/component composition) —
+    pixel-diff computation and PNG decode/encode already call capture-kit's `png`/
+    `png-worker-client`; the root files remain for daemon/CLI diff-report composition.
+    Equivalent: none (built atop already-migrated capture-kit mechanics).
+- `src/provider-device-runtime.ts`, `src/provider-device-runtimes.ts`,
+  `src/provider-limrun-runtime.ts`, `src/provider-webdriver.ts`. Mostly already thin: the bulk of
+  WebDriver and Limrun provider logic lives in `packages/provider-webdriver/src/` and
+  `packages/provider-limrun/src/`; these root files are the composition-time wiring, comparable in
+  role to `src/platform-runtime.ts` itself.
+- `src/core` (R13-governed consumer seams), `src/commands`, `src/cli`, `src/cli-schema`,
+  `src/mcp`, `src/client`, `src/sdk`, `src/ai-sdk`, `src/remote`, `src/request`, `src/metro`,
+  `src/backend*.ts`. Not migration targets: these are command-surface, protocol-projection, and
+  daemon-owned zones this ADR keeps in `src/` by design, not residue awaiting a package.
+
+Neither number has an owning issue, gate, or accepted budget yet. Treat both as inputs to a
+maintainer decision, not as a ratchet.

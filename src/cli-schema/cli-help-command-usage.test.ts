@@ -12,6 +12,13 @@ test('usageForCommand documents open --launch-args', async () => {
   assert.match(help, /--launch-console artifacts\/launch-console\.log/);
 });
 
+test('usageForCommand documents strict wait absent', async () => {
+  const help = await usageForCommand('wait');
+  if (help === null) throw new Error('Expected wait help text');
+  assert.match(help, /absent <selector> \[timeoutMs\]/);
+  assert.match(help, /strictly absent|zero selector matches/);
+});
+
 test('usageForCommand documents screenshot web aliases and stabilization flags', async () => {
   const help = await usageForCommand('screenshot');
   if (help === null) throw new Error('Expected screenshot help text');
@@ -21,6 +28,8 @@ test('usageForCommand documents screenshot web aliases and stabilization flags',
   assert.match(help, /low-latency Android capture loops/);
   assert.match(help, /--normalize-status-bar/);
   assert.match(help, /deterministic iOS simulator chrome/);
+  assert.match(help, /--crop-on <selector-expression>/);
+  assert.match(help, /crop the capture to the frame of the selector/);
 });
 
 test('usageForCommand documents screenshot diff normalization', async () => {
@@ -413,6 +422,7 @@ test('settings usage documents canonical faceid states', async () => {
   if (help === null) throw new Error('Expected command help text');
   assert.match(help, /location set <lat> <lon>/);
   assert.match(help, /clear-app-state \[app-id\]/);
+  assert.match(help, /reset-keychain clear/);
   assert.match(help, /light\|dark\|toggle/);
   assert.match(help, /match\|nonmatch\|enroll\|unenroll/);
   assert.match(

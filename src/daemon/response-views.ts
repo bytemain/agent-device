@@ -1,6 +1,6 @@
 import type { ResponseLevel } from '@agent-device/kernel/contracts';
 import type { ScreenshotOverlayRef, SnapshotNode } from '@agent-device/kernel/snapshot';
-import type { DaemonResponseData } from './types.ts';
+import type { DaemonResponseData } from './daemon-request.ts';
 
 /**
  * Phase 4 leveled response views. A view maps a command's `default` result data
@@ -76,6 +76,7 @@ function screenshotView(data: DaemonResponseData, level: ResponseLevel): DaemonR
     ...pickScreenshotDigestMetadata(data),
     overlayCount: overlays.length,
     overlayRefs,
+    ...(data.warnings !== undefined ? { warnings: data.warnings } : {}),
     ...(data.artifacts !== undefined ? { artifacts: data.artifacts } : {}),
   };
 }
@@ -89,10 +90,12 @@ function pickScreenshotDigestMetadata(data: DaemonResponseData): DaemonResponseD
   return metadata;
 }
 
-// The semantic attributes of a single matched node an agent reasons about. The
-// verbose framing a digest drops — geometry (`rect`), tree indices
-// (`index`/`parentIndex`/`depth`), and process/app plumbing
-// (`pid`/`bundleId`/`appName`/`windowTitle`/`surface`/…) — is intentionally absent.
+// The semantic attributes of a single matched node an agent reasons about,
+// including the field facts whose explicit false/zero/empty is the signal (#2288:
+// absent means unavailable). The verbose framing a digest drops — geometry
+// (`rect`), tree indices (`index`/`parentIndex`/`depth`), and process/app
+// plumbing (`pid`/`bundleId`/`appName`/`windowTitle`/`surface`/…) — is
+// intentionally absent.
 const SELECTOR_DIGEST_NODE_FIELDS = [
   'role',
   'type',
@@ -103,6 +106,11 @@ const SELECTOR_DIGEST_NODE_FIELDS = [
   'enabled',
   'selected',
   'focused',
+  'editable',
+  'password',
+  'hintShowing',
+  'selectionStart',
+  'selectionEnd',
   'hittable',
 ] as const;
 

@@ -17,11 +17,12 @@ import {
   isSerialAddressablePlatform,
   type AppleOS,
 } from '@agent-device/kernel/device';
+import { isSessionRuntimePlatform, type SessionRuntimeHints } from '@agent-device/kernel/contracts';
 import { AppError, type DaemonError } from '@agent-device/kernel/errors';
 import { sanitizeErrorCause } from '@agent-device/kernel/redaction';
 import type { SnapshotNode } from '@agent-device/kernel/snapshot';
 import { leaseScopeFromOptions, leaseScopeToRequestMeta } from '../core/lease-scope.ts';
-import type { DaemonRequest, SessionRuntimeHints } from '../daemon/types.ts';
+import type { DaemonRequest } from '../daemon/daemon-request.ts';
 import {
   asRecord,
   isRecord,
@@ -199,7 +200,7 @@ export function normalizeRuntimeHints(value: unknown): SessionRuntimeHints | und
   const bundleUrl = readOptionalString(value, 'bundleUrl');
   const launchUrl = readOptionalString(value, 'launchUrl');
   return {
-    platform: platform === 'ios' || platform === 'android' ? platform : undefined,
+    platform: isSessionRuntimePlatform(platform) ? platform : undefined,
     metroHost,
     metroPort,
     bundleUrl,

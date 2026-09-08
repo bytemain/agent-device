@@ -92,6 +92,16 @@
       "exports": ["buildAppNotInstalledError"]
     },
     {
+      "comment": "Runner operations reach the daemon only through the memoized loader in src/platform-runtime-apple-application-tools.ts (one dynamic import per specifier, #2314). Fallow cannot connect a member read off that loader's promise to these re-exports; keep the list to the facade members no static import consumes.",
+      "file": "packages/platform-apple/src/runner-operations-facade.ts",
+      "exports": [
+        "detachIosSimulatorRunnerSessionsForShutdown",
+        "hasLiveIosRunnerSession",
+        "releaseSpeculativeIosRunnerSessionFor",
+        "stopAllIosRunnerSessions"
+      ]
+    },
+    {
       "comment": "Apple install mechanics are reached through the named install-artifact façade. Fallow cannot connect workspace package exports to these source exports; keep this list limited to the actual facade re-exports.",
       "file": "packages/platform-apple/src/core/install-artifact.ts",
       "exports": ["prepareIosInstallArtifact", "readIosBundleInfo"]
@@ -246,7 +256,7 @@
     },
     {
       "comment": "Type-level `AssertTrue<...>` registry-totality guards. Exported only so `noUnusedLocals` keeps them alive; a consumer would defeat the point.",
-      "file": "{src/core/command-descriptor/registry.ts,src/core/interactors/register-builtins.ts,src/core/platform-descriptor/registry.ts,src/daemon/request-platform-providers.ts}",
+      "file": "{packages/command-registry/src/registry.ts,src/core/interactors/register-builtins.ts,src/core/platform-descriptor/registry.ts,src/daemon/request-platform-providers.ts}",
       "exports": [
         "CommandOwnerFileClaimsAreComplete",
         "BuiltinPluginsCoverAllPlatforms",
@@ -299,6 +309,29 @@
       "comment": "Android mechanics facet: the package exports the complete named implementation seam for root/core/SDK consumers and package-owned tests; Fallow's production graph does not follow workspace subpath imports through the package exports map.",
       "file": "packages/platform-android/src/mechanics.ts",
       "exports": ["*"]
+    },
+    {
+      "comment": "Apple Simulator snapshot acquisition is a private package facet consumed by downstream runtime work; Fallow cannot see external consumers through the workspace exports map. Keep only the deliberately narrow public factory, source interface, and request/outcome types here; host injection, cache metadata, and preparation internals stay private.",
+      "file": "packages/platform-apple/src/snapshot-source-facade.ts",
+      "exports": [
+        "createSimulatorSnapshotSource",
+        "SimulatorSnapshotSource",
+        "SnapshotSourceFailure",
+        "SnapshotSourceFailureKind",
+        "SnapshotSourceLimits",
+        "SnapshotSourceOutcome",
+        "SnapshotSourceRequest",
+        "SnapshotSourceTarget"
+      ]
+    },
+    {
+      "comment": "The native wire vocabulary is exported only so the parity test can pin the Objective-C literals; it is not part of the snapshot-source package facet.",
+      "file": "packages/platform-apple/src/snapshot-source/protocol.ts",
+      "exports": [
+        "SNAPSHOT_SOURCE_ATTRIBUTE_KEYS",
+        "SNAPSHOT_SOURCE_RESPONSE_KEYS",
+        "SNAPSHOT_SOURCE_WIRE_KEYS"
+      ]
     },
     {
       "comment": "Deliberately kept off the @agent-device/maestro façade (index.test.ts asserts its absence) and consumed only by the conformance harness under packages/maestro/test/.",

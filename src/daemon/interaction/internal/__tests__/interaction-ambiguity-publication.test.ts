@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { AppError } from '@agent-device/kernel/errors';
-import type { SessionState } from '../../../types.ts';
+import type { SessionState } from '../../../session-state.ts';
 import { admitRefMutation, refFrameScope } from '../../../ref-frame.ts';
 import { markSessionPartialRefsIssued } from '../../../session-snapshot.ts';
 import { publishInteractionAmbiguityCandidates } from '../interaction-ambiguity-publication.ts';
@@ -57,5 +57,5 @@ test('non-ambiguity errors do not change ref authority', () => {
     }),
     original,
   );
-  assert.equal(state.refFrameScope, undefined);
+  assert.equal(state.refFrame, undefined);
 });

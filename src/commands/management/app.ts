@@ -1,4 +1,4 @@
-import { PUBLIC_COMMANDS } from '../../command-catalog.ts';
+import { PUBLIC_COMMANDS } from '@agent-device/command-registry/catalog';
 import type { AppCloseOptions, AppOpenOptions } from '@agent-device/contracts/client';
 import { DEFAULT_APPS_FILTER } from '@agent-device/contracts/device';
 import { SESSION_SURFACES } from '@agent-device/contracts/session';
@@ -14,7 +14,6 @@ import {
   stringField,
   stringSchema,
 } from '../command-input.ts';
-import { defineExecutableCommand } from '../command-contract.ts';
 import { commonInputFromFlags, direct, optionalString } from '../cli-grammar/common.ts';
 import type { CliReader, CommandInput, DaemonWriter } from '../cli-grammar/types.ts';
 import { METRO_RELOAD_FLAGS } from '../cli-grammar/flag-groups.ts';
@@ -50,6 +49,10 @@ const openCommandMetadata = defineFieldCommandMetadata(
       'Launch arguments forwarded verbatim to the platform launch command.',
     ),
     relaunch: booleanField('Force relaunch.'),
+    timeoutMs: integerField(
+      'Startup budget in milliseconds. Bounds the Simulator boot wait, so a never-booted Simulator can finish its first-boot migration; omit for the default startup behavior.',
+      { min: 1 },
+    ),
     foreground: booleanField(
       'Include an initial interactive snapshot in a fresh open response. With no app argument, discover the sole running app on the sole booted iOS simulator; ambiguous environments fail closed.',
     ),
@@ -92,14 +95,6 @@ const closeCommandMetadata = defineFieldCommandMetadata(
   },
 );
 
-const appsCommandDefinition = defineExecutableCommand(appsCommandMetadata, (client, input) =>
-  client.apps.list(input),
-);
-
-const openCommandDefinition = defineExecutableCommand(openCommandMetadata, (client, input) =>
-  client.apps.open(toAppOpenOptions(input)),
-);
-
 // The flat metro hint flags fold into the `runtime` object open already accepts.
 function toAppOpenOptions(
   input: AppOpenOptions & {
@@ -111,10 +106,6 @@ function toAppOpenOptions(
 ): AppOpenOptions {
   return withCommandRuntimeHints(input);
 }
-
-const closeCommandDefinition = defineExecutableCommand(closeCommandMetadata, (client, input) =>
-  input.app ? client.apps.close(input) : client.sessions.close(withoutApp(input)),
-);
 
 const appsCliSchema = {
   allowedFlags: ['appsFilter'],
@@ -134,6 +125,7 @@ const openCliSchema = {
     'noRecord',
     'relaunch',
     'foreground',
+    'timeoutMs',
     'surface',
     ...METRO_RELOAD_FLAGS,
     'launchUrl',
@@ -160,6 +152,7 @@ const openCliReader: CliReader = (positionals, flags) => ({
   launchArgs: flags.launchArgs,
   relaunch: flags.relaunch,
   foreground: flags.foreground,
+  timeoutMs: flags.timeoutMs,
   saveScript: flags.saveScript,
   force: flags.force,
   deviceHub: flags.deviceHub,
@@ -193,7 +186,7 @@ export const appsCommandFacet = defineCommandFacet({
       'Before provider allocation, lists uploaded app assets when the selected provider exposes a catalog. On a live device, defaults to user-installed apps; use --all to include system/OEM apps.',
   },
   metadata: appsCommandMetadata,
-  definition: appsCommandDefinition,
+  run: (client, input) => client.apps.list(input),
   cliSchema: appsCliSchema,
   cliReader: appsCliReader,
   daemonWriter: appsDaemonWriter,
@@ -210,7 +203,7 @@ export const openCommandFacet = defineCommandFacet({
       "Metro and debug runtime hints given here are recorded as the session's dev-server binding, so a later reload reuses them; a fresh open without them clears any binding left by a previous same-name session.",
   },
   metadata: openCommandMetadata,
-  definition: openCommandDefinition,
+  run: (client, input) => client.apps.open(toAppOpenOptions(input)),
   cliSchema: openCliSchema,
   cliReader: openCliReader,
   daemonWriter: openDaemonWriter,
@@ -223,7 +216,8 @@ export const closeCommandFacet = defineCommandFacet({
     summary: 'Close an app or end the session',
   },
   metadata: closeCommandMetadata,
-  definition: closeCommandDefinition,
+  run: (client, input) =>
+    input.app ? client.apps.close(input) : client.sessions.close(withoutApp(input)),
   cliSchema: closeCliSchema,
   cliReader: closeCliReader,
   daemonWriter: closeDaemonWriter,

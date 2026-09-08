@@ -30,7 +30,7 @@ import type {
   PlatformProviderRequestContext,
 } from '@agent-device/contracts/platform-providers';
 import { resolvePlatformProviderRequestContext } from '../request-platform-provider-context.ts';
-import type { DaemonRequest } from '../types.ts';
+import type { DaemonRequest } from '../daemon-request.ts';
 
 const OTHER_IOS_SIMULATOR: DeviceInfo = {
   platform: 'apple',
@@ -249,7 +249,7 @@ test('generic Apple runner provider cannot fall back to local recording authorit
       req: request('record'),
       existingSession: makeMacOsSession('macos-session'),
       providers: {
-        appleRunnerProvider: () => ({ runCommand: async () => ({}) }),
+        appleRunnerProvider: () => ({ runCommand: async () => ({}), hasLiveSession: () => true }),
       },
     },
     async () => {
@@ -289,7 +289,7 @@ test('focused Apple runner recording authority remains exact across recreated re
     },
   });
   const providers = {
-    appleRunnerProvider: () => ({ runCommand: async () => ({}) }),
+    appleRunnerProvider: () => ({ runCommand: async () => ({}), hasLiveSession: () => true }),
     appleRunnerScreenRecordingTransport: () => transport,
   };
   const runnerSessionId = await withRequestPlatformProviderScope(

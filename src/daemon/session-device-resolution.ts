@@ -1,10 +1,10 @@
 import { isIosFamily, type DeviceInfo } from '@agent-device/kernel/device';
 import { AppError } from '@agent-device/kernel/errors';
 import { isActiveProviderDevice } from '../provider-device-runtime.ts';
-import { ensureDeviceReady } from './device-ready.ts';
 import { inspectAppleRunnerSession } from '../platform-runtime-apple-resources.ts';
 import { resolveTargetDevice } from '../core/dispatch-resolve.ts';
-import type { DaemonRequest, DaemonResponse, SessionState } from './types.ts';
+import type { DaemonRequest, DaemonResponse } from './daemon-request.ts';
+import type { SessionState } from './session-state.ts';
 import { hasDeviceSelectionInput, hasExplicitDeviceSelector } from './device-selector-intent.ts';
 import { listSessionSelectorConflicts } from './session-selector.ts';
 import { errorResponse } from './response.ts';
@@ -30,7 +30,6 @@ export function hasExplicitSessionFlag(flags: DaemonRequest['flags'] | undefined
 export async function resolveCommandDevice(params: {
   session: SessionState | undefined;
   flags: DaemonRequest['flags'] | undefined;
-  ensureReady?: boolean;
   androidAvdSelection?: 'running-only' | 'include-stopped';
 }): Promise<DeviceInfo> {
   const shouldUseExplicitIdentity = hasExplicitDeviceSelector(params.flags);
@@ -40,9 +39,6 @@ export async function resolveCommandDevice(params: {
           androidAvdSelection: params.androidAvdSelection,
         })
       : await refreshSessionDeviceIfNeeded(params.session.device);
-  if (params.ensureReady !== false) {
-    await ensureDeviceReady(device);
-  }
   return device;
 }
 

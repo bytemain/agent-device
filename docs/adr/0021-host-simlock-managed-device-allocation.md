@@ -110,10 +110,12 @@ authorization and attribution around the same boundary. Plain local device selec
 
 Before acquisition, agent-device durably records a non-authoritative allocation operation: the
 logical requester, idempotency key, immutable shape request, deadline, and Host attribution when
-applicable. After Simlock responds, it records the allocator handle/outcome and whether Host
-published or cleaned it. This journal exists only to recover the Host-to-Simlock handoff. It never
-mirrors Simlock's queue, provisioning, lease, cleanup, health, or capacity states, and it never
-decides whether a device is reusable.
+applicable. After Simlock responds, it records the allocator handle/outcome. Before invoking an
+external Host binding publisher, it durably records a pending publication; publication success is
+then recorded separately, and recovery conservatively cleans a pending or uncertain binding before
+releasing the allocator lease. This journal exists only to recover the Host-to-Simlock handoff. It
+never mirrors Simlock's queue, provisioning, lease, cleanup, health, or capacity states, and it
+never decides whether a device is reusable.
 
 Each logical requester is a restart-stable allocation lane; concurrent leases use distinct lanes.
 Replaying the same attempt key returns the same durable outcome, including a refusal. Disconnect,
@@ -166,6 +168,22 @@ canonical teardown. Renewals are allocator-first, amortized outside the safety w
 per managed-device lease. A failed or uncertain renewal fences only the affected Host/managed-device
 binding, reconciles through Simlock, and either publishes the confirmed deadline or tears down. No
 command continues on Host's cached deadline alone.
+
+The daemon's lease-admission service is `createManagedLeaseAdmission` under
+`src/daemon/managed-device-allocation/`. One instance belongs to one binding incarnation;
+its coordinator must fence it before release, replacement, or supersession. `managedCommandHorizon`
+reuses the command's request envelope and reserves the canonical teardown budget including recording
+finalization. Unbounded commands require a bounded child request before managed execution.
+An `admitted` result reports only allocator-confirmed authority; `teardown-required` leaves that
+binding permanently fenced. Budget reservation is not proof of cleanup or runner quiescence.
+Request runtime binding accepts a matching lease service and command horizon from its coordinator.
+Exact managed binding admits the allocator-held claim and confirms that horizon before native bind
+probes; readiness activates only after the binding is adopted and its requested operations are
+admitted. The managed runtime owner dispatches each reviewed operation inside lease admission.
+Request disposal cancels pending admissions and revokes readiness before cleanup begins, while
+shared renewal and late-binding cleanup retain their existing owners. Unconfigured managed requests
+remain refused. This seam does not provide a publication/recovery coordinator, which must use
+canonical teardown before returning the allocation.
 
 Release is durable and retryable. Host does not publish a replacement grant while Simlock may still
 mutate the device. After either daemon restarts, the journal is reconciled through Simlock lookup: a

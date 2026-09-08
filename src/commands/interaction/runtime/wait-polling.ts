@@ -17,9 +17,30 @@ export const DEFAULT_WAIT_TIMEOUT_MS = SELECTOR_PIPELINE_POLICIES.wait.poll.defa
 
 export type WaitPollDeadline = 'capture-stalled' | 'capture-truncated' | 'runner-restart-exhausted';
 
+/**
+ * How one poll ended: a readable capture, an unreadable content verdict the wait rode out, the
+ * deadline cancelling the capture in flight, or that cancellation carrying runner-restart
+ * evidence. Whether a readable capture matched is the caller's verdict, not the poll's.
+ */
+export type WaitPollOutcome = 'readable' | 'unreadable' | 'deadline' | 'runner-restart';
+
+/** One poll on the wait's own clock: when it started after the wait began and how long it ran. */
+export type WaitPollRecord = {
+  startedMs: number;
+  durationMs: number;
+  outcome: WaitPollOutcome;
+};
+
+/** Keeps a long wait's failure compact: the first polls carry the cold-start cost, the last the end. */
+const WAIT_POLL_TIMELINE_HEAD = 5;
+const WAIT_POLL_TIMELINE_TAIL = 25;
+
 export type WaitFailureEvidence = {
   timeoutMs: number;
   readableCaptures: number;
+  /** Every poll attempted, readable or not. */
+  captures: number;
+  polls: WaitPollRecord[];
   waitedMs: number;
   runnerRestarted?: true;
   runnerRestartReason?: string;
@@ -43,6 +64,11 @@ type WaitPollingOptions = {
   signal?: AbortSignal;
 };
 
+export type WaitPollingClassification = {
+  isUnreadableError?: (error: unknown) => boolean;
+  preserveUnreadableOnStall?: boolean;
+};
+
 type UnreadablePollTracker = {
   attempt: <T>(capture: () => Promise<T>) => Promise<T | undefined>;
   recordReadableCapture: () => void;
@@ -52,6 +78,7 @@ type UnreadablePollTracker = {
 
 type WaitFailurePolling = {
   failureEvidence: () => WaitFailureEvidence;
+  preserveUnreadableOnStall?: boolean;
   rethrowIfNeverReadable: () => void;
 };
 
@@ -65,17 +92,22 @@ export function createWaitPolling(
   options: WaitPollingOptions,
   requestedTimeoutMs: number | null | undefined,
   policy: SelectorPipelinePolicy,
+  classification: WaitPollingClassification = {},
 ) {
   const budget = selectorPollBudget(policy);
   const timeoutMs = requestedTimeoutMs ?? budget.defaultTimeoutMs;
   const startedAtMs = now(runtime);
-  const unreadable = createUnreadablePollTracker();
+  const unreadable = createUnreadablePollTracker(classification.isUnreadableError);
+  const polls: WaitPollRecord[] = [];
   let timeoutEvidence: Partial<WaitFailureEvidence> = {};
   const remainingMs = () => Math.max(0, timeoutMs - (now(runtime) - startedAtMs));
 
   return {
     capture: async <T>(capture: (signal: AbortSignal) => Promise<T>) => {
       let captureWasReadable = false;
+      const startedMs = now(runtime) - startedAtMs;
+      const recordPoll = (outcome: WaitPollOutcome) =>
+        polls.push({ startedMs, durationMs: now(runtime) - startedAtMs - startedMs, outcome });
       const result = await runWithinWaitDeadline(
         runtime,
         options,
@@ -89,9 +121,11 @@ export function createWaitPolling(
       );
       if (!result.timedOut) {
         if (captureWasReadable) unreadable.recordReadableCapture();
+        recordPoll(captureWasReadable ? 'readable' : 'unreadable');
         return result;
       }
       const runnerRestart = runnerRestartTimeoutEvidence(result.error);
+      recordPoll(runnerRestart ? 'runner-restart' : 'deadline');
       timeoutEvidence = runnerRestart ?? {};
       // A capture that only becomes readable after its deadline is not evidence for this wait.
       // Count only captures that completed before runWithinWaitDeadline returned a timeout.
@@ -112,15 +146,23 @@ export function createWaitPolling(
     failureEvidence: (): WaitFailureEvidence => ({
       timeoutMs,
       readableCaptures: unreadable.readableCaptures(),
+      captures: polls.length,
+      polls: compactPollTimeline(polls),
       waitedMs: now(runtime) - startedAtMs,
       ...timeoutEvidence,
     }),
+    preserveUnreadableOnStall: classification.preserveUnreadableOnStall,
     rethrowIfNeverReadable: unreadable.rethrowIfNeverReadable,
     sleepUntilNextPoll: async () =>
       await sleepWithWaitCancellation(runtime, options, Math.min(budget.intervalMs, remainingMs())),
     timeoutMs,
     waitedMs: () => now(runtime) - startedAtMs,
   };
+}
+
+function compactPollTimeline(polls: readonly WaitPollRecord[]): WaitPollRecord[] {
+  if (polls.length <= WAIT_POLL_TIMELINE_HEAD + WAIT_POLL_TIMELINE_TAIL) return [...polls];
+  return [...polls.slice(0, WAIT_POLL_TIMELINE_HEAD), ...polls.slice(-WAIT_POLL_TIMELINE_TAIL)];
 }
 
 function waitCaptureStalledError(message: string, evidence: WaitFailureEvidence): AppError {
@@ -167,7 +209,10 @@ export function waitTimeoutError(
   if (deadline === 'runner-restart-exhausted') {
     return waitRunnerRestartExhaustedError(message, evidence);
   }
-  if (deadline === 'capture-stalled') return waitCaptureStalledError(message, evidence);
+  if (deadline === 'capture-stalled') {
+    if (polling.preserveUnreadableOnStall) polling.rethrowIfNeverReadable();
+    return waitCaptureStalledError(message, evidence);
+  }
   if (deadline === 'capture-truncated') return waitDeadlineExceededError(message, evidence);
 
   polling.rethrowIfNeverReadable();
@@ -200,7 +245,9 @@ function copyStringDetail<Key extends keyof WaitFailureEvidence>(
   return typeof value === 'string' ? ({ [key]: value } as Pick<WaitFailureEvidence, Key>) : {};
 }
 
-function createUnreadablePollTracker(): UnreadablePollTracker {
+function createUnreadablePollTracker(
+  isUnreadableError: (error: unknown) => boolean = isUnreadableCaptureContentError,
+): UnreadablePollTracker {
   let readableCaptureCount = 0;
   let lastUnreadableError: unknown;
   return {
@@ -208,7 +255,7 @@ function createUnreadablePollTracker(): UnreadablePollTracker {
       try {
         return await capture();
       } catch (error) {
-        if (!isUnreadableCaptureContentError(error)) throw error;
+        if (!isUnreadableError(error)) throw error;
         lastUnreadableError = error;
         return undefined;
       }

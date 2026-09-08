@@ -11,10 +11,16 @@ import type {
 } from '@agent-device/contracts/snapshot-runtime';
 import { buildIosOpenCommandHint } from './ios-app-session-hint.ts';
 import { buildRuntimeCaptureInput } from './snapshot-runtime-capture-input.ts';
-import type { BindDeviceRuntime, InspectDeviceRuntimeFacts } from './request-runtime-binding.ts';
-import type { PlatformResourceCleanup } from '@agent-device/contracts/platform-resource-cleanup';
+import {
+  ensureBoundDeviceReady,
+  type BindDeviceRuntime,
+  type InspectDeviceRuntimeFacts,
+} from './request-runtime-binding.ts';
+import type { DeviceReadyOptions } from './device-ready.ts';
+import type { PlatformResourceCleanup } from './platform-resource-cleanup.ts';
 import { SessionStore } from './session-store.ts';
-import type { DaemonRequest, DaemonResponse, SessionState } from './types.ts';
+import type { DaemonRequest, DaemonResponse } from './daemon-request.ts';
+import type { SessionState } from './session-state.ts';
 import {
   admitRuntimePlan,
   requireRuntimeBinding,
@@ -97,6 +103,7 @@ export async function admitAndBindSnapshotCapture(
     plan: SnapshotRuntimePlan | SelectorCaptureRuntimePlan;
     inspectFacts?: InspectDeviceRuntimeFacts;
     bindDevice?: BindDeviceRuntime;
+    readiness?: DeviceReadyOptions;
   }>,
 ): Promise<AdmittedSnapshotCapture> {
   const { command, device, session, plan } = params;
@@ -113,7 +120,7 @@ export async function admitAndBindSnapshotCapture(
       }),
     };
   }
-  const bound = await bindSnapshotCaptureRuntime(params.bindDevice, admission);
+  const bound = await bindSnapshotCaptureRuntime(params.bindDevice, admission, params.readiness);
   return Object.freeze({
     ok: true,
     capture: async (input: CaptureSnapshotInput) => await bound.captureSnapshot(input),
@@ -145,6 +152,7 @@ export async function resolveBoundSnapshotCaptureRuntime(
     }),
     inspectFacts: params.inspectFacts,
     bindDevice: params.bindDevice,
+    ...(session ? {} : { readiness: {} }),
   });
   if (!bound.ok) return bound;
 
@@ -172,6 +180,7 @@ export async function resolveBoundSnapshotCaptureRuntime(
 async function bindSnapshotCaptureRuntime(
   bindDevice: BindDeviceRuntime | undefined,
   admission: AdmittedRuntimePlan<SnapshotRuntimePlan | SelectorCaptureRuntimePlan>,
+  readiness: DeviceReadyOptions | undefined,
 ): Promise<
   Readonly<{
     captureSnapshot(input: CaptureSnapshotInput): Promise<SnapshotResult>;
@@ -187,6 +196,11 @@ async function bindSnapshotCaptureRuntime(
   }>
 > {
   const bind = requireRuntimeBinding(bindDevice);
+  const bindReady: BindDeviceRuntime = async (device, use) => {
+    const runtime = await bind(device, use);
+    if (readiness !== undefined) await ensureBoundDeviceReady(runtime, readiness);
+    return runtime;
+  };
   const { device, plan } = unwrapAdmittedRuntimePlan(admission);
   // One switch, one set of operation selectors. The selector arms reuse the SAME
   // `selectActiveAppSnapshot` / `selectSnapshotWithoutActiveApp` the snapshot arms use and only
@@ -194,25 +208,25 @@ async function bindSnapshotCaptureRuntime(
   // `plan.use` per family. No parallel plan-to-operation dispatch is introduced.
   switch (plan.kind) {
     case 'active-app': {
-      const runtime = await bind(device, plan.use);
+      const runtime = await bindReady(device, plan.use);
       return selectActiveAppSnapshot(runtime);
     }
     case 'selector-active-app': {
-      return await bindActiveAppSelectorRuntime(bind, device, plan);
+      return await bindActiveAppSelectorRuntime(bindReady, device, plan);
     }
     case 'custom-actions-active-app': {
-      const runtime = await bind(device, plan.use);
+      const runtime = await bindReady(device, plan.use);
       return selectCustomActionsSnapshot(runtime);
     }
     case 'without-active-app': {
-      const runtime = await bind(device, plan.use);
+      const runtime = await bindReady(device, plan.use);
       return selectSnapshotWithoutActiveApp(runtime);
     }
     case 'selector-without-active-app': {
-      return await bindSelectorRuntimeWithoutActiveApp(bind, device, plan);
+      return await bindSelectorRuntimeWithoutActiveApp(bindReady, device, plan);
     }
     case 'custom-actions-without-active-app': {
-      const runtime = await bind(device, plan.use);
+      const runtime = await bindReady(device, plan.use);
       return selectCustomActionsSnapshot(runtime);
     }
   }

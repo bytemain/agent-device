@@ -3,12 +3,8 @@ import type { RuntimeHintsApplicationInput } from '@agent-device/contracts/appli
 import { openApplicationRuntimeUse } from '@agent-device/contracts/application-lifecycle-runtime-plan';
 import type { BoundDeviceRuntime } from '@agent-device/contracts/platform-runtime';
 import type { DeviceInfo } from '@agent-device/kernel/device';
-import type {
-  DaemonRequest,
-  DaemonResponse,
-  SessionRuntimeHints,
-  SessionState,
-} from '../../types.ts';
+import type { DaemonRequest, DaemonResponse } from '../../daemon-request.ts';
+import type { SessionRuntimeHints, SessionState } from '../../session-state.ts';
 import { SessionStore } from '../../session-store.ts';
 import {
   resolveRequestedOpenSurface,
@@ -165,6 +161,7 @@ export async function prepareOpenCommandDetails(params: {
     prewarmRunnerOnColdBoot:
       surface === 'app' && Boolean(openTarget) && !isDeepLinkTarget(openTarget ?? ''),
     execution: {
+      startupDeadlineAtMs: openStartupDeadlineAtMs(req),
       requestId: req.meta?.requestId,
       logPath,
       traceLogPath: existingSession?.trace?.outPath,
@@ -229,4 +226,12 @@ async function resolvePreparedOpenIdentity(params: {
     appBundleId: resolved.appBundleId,
     appName: resolved.appName,
   };
+}
+
+/** `open --timeout` is a startup budget; it becomes the absolute deadline the boot wait honors. */
+function openStartupDeadlineAtMs(req: DaemonRequest): number | undefined {
+  const timeoutMs = req.flags?.timeoutMs;
+  return typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0
+    ? Date.now() + timeoutMs
+    : undefined;
 }

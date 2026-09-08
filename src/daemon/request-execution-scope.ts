@@ -35,14 +35,12 @@ import {
   buildRequestFinishedEvent,
   buildRequestStartedEvent,
   shouldRecordEventForRequest,
-} from './session-event-log.ts';
+} from '@agent-device/session-journal/session-event-log';
 import type { LeaseRegistry } from './lease-registry.ts';
-import {
-  resolveSessionRequestLog,
-  resolveSessionRunnerLogPath,
-  type SessionStore,
-} from './session-store.ts';
-import type { DaemonRequest, DaemonResponse, SessionState } from './types.ts';
+import { type SessionStore } from './session-store.ts';
+import { resolveSessionRequestLog, resolveSessionRunnerLogPath } from './session-artifact-paths.ts';
+import type { DaemonRequest, DaemonResponse } from './daemon-request.ts';
+import type { SessionState } from './session-state.ts';
 import { teardownSessionResources } from './session-teardown.ts';
 import { finalizeBoundSessionApplicationLifecycle } from './application-lifecycle-recovery.ts';
 import { runtimeHintValues } from './session-runtime.ts';
@@ -58,8 +56,8 @@ import {
 } from './request-runtime-binding.ts';
 import { createDeviceClaimAdmission, type DeviceClaimAdmission } from './device-claim-admission.ts';
 import { createOwnerScopedDeviceClaimReconciler } from './device-claim-owner-recovery.ts';
-import { resolveCommandDeviceClaimPolicy } from '../core/command-descriptor/registry.ts';
-import type { PlatformResourceCleanup } from '@agent-device/contracts/platform-resource-cleanup';
+import { resolveCommandDeviceClaimPolicy } from '@agent-device/command-registry/registry';
+import type { PlatformResourceCleanup } from './platform-resource-cleanup.ts';
 
 // Production daemon wiring owns one LeaseRegistry per process; scoping locks by registry keeps
 // test and embedded routers isolated without changing process-level serialization there.

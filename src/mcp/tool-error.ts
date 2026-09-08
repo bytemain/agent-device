@@ -4,7 +4,7 @@ import {
   type ErrorCandidateView,
   type NormalizedError,
 } from '@agent-device/kernel/errors';
-import { formatReplayDivergenceReport } from '@agent-device/contracts/divergence';
+import { formatReplayDivergenceReport } from '@agent-device/ad-replay/divergence';
 
 export function normalizeToolError(error: unknown): NormalizedError {
   return normalizeError(error);

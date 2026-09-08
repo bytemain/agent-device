@@ -8,7 +8,7 @@ import type {
   ProviderDeviceRuntime,
 } from '@agent-device/contracts/device';
 import type { Interactor, RunnerContext } from '@agent-device/contracts/interactor-types';
-import type { DaemonRequest } from '../../../src/daemon/types.ts';
+import type { DaemonRequest } from '../../../src/daemon/daemon-request.ts';
 import type { DeviceInfo } from '@agent-device/kernel/device';
 import { applePlugin } from '@agent-device/platform-apple';
 import type {
@@ -212,6 +212,7 @@ function createProviderRuntime(
   options: { requestScope: boolean },
 ): ProviderDeviceRuntime {
   const transport: AppleRunnerProvider = {
+    hasLiveSession: () => true,
     runCommand: async (_device, command, options) => {
       calls.runner.push({ command, options });
       return runnerResultFor(command);

@@ -30,10 +30,21 @@ import { parseAppleFramePerfSample } from '../perf-frame.ts';
 import { runCmd, runCmdBackground } from '@agent-device/host-kit/command';
 import type { DeviceInfo } from '@agent-device/kernel/device';
 import { AppError } from '@agent-device/kernel/errors';
+import {
+  hostPs,
+  iosSimulatorAppContainer,
+  isSimulatorPs,
+  macosBundleLookup,
+  mockHostCommands,
+  simulatorPs,
+  simulatorPsUnavailable,
+  writeIosSimulatorApp,
+  writeMacosAppBundle,
+  type MockRunCmdResult,
+} from './perf.fixtures.ts';
 
 const mockRunCmd = vi.mocked(runCmd);
 const mockRunCmdBackground = vi.mocked(runCmdBackground);
-type MockRunCmdResult = Awaited<ReturnType<typeof runCmd>>;
 type XcrunMockHandler = (args: string[]) => Promise<MockRunCmdResult | null>;
 
 const IOS_SIMULATOR: DeviceInfo = {
@@ -160,39 +171,15 @@ test('parseAppleFramePerfSample summarizes app hitches and worst windows', () =>
 
 test('sampleAppleMemoryPerf aggregates host ps memory for macOS app bundle', async () => {
   const tmpDir = await mkdtempForTest('agent-device-macos-perf-');
-  const bundlePath = path.join(tmpDir, 'Example.app');
-  await fs.mkdir(path.join(bundlePath, 'Contents'), { recursive: true });
-  await fs.writeFile(
-    path.join(bundlePath, 'Contents', 'Info.plist'),
-    [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<plist version="1.0"><dict>',
-      '<key>CFBundleExecutable</key><string>ExampleExec</string>',
-      '</dict></plist>',
-    ].join(''),
-    'utf8',
-  );
-
-  mockRunCmd.mockImplementation(async (cmd, args) => {
-    if (cmd === 'mdfind') {
-      return { stdout: `${bundlePath}\n`, stderr: '', exitCode: 0 };
-    }
-    if (cmd === 'plutil') {
-      return { stdout: '', stderr: 'mock fallback', exitCode: 1 };
-    }
-    if (cmd === 'ps') {
-      return {
-        stdout: [
-          `111 8.5 12000 ${path.join(bundlePath, 'Contents', 'MacOS', 'ExampleExec')}`,
-          `222 1.5 5000 ${path.join(bundlePath, 'Contents', 'MacOS', 'ExampleExec')} --helper`,
-          '333 9.0 9999 /Applications/Other.app/Contents/MacOS/Other',
-        ].join('\n'),
-        stderr: '',
-        exitCode: 0,
-      };
-    }
-    throw new Error(`unexpected command: ${cmd} ${args.join(' ')}`);
-  });
+  const bundlePath = await writeMacosAppBundle(tmpDir, 'ExampleExec');
+  mockHostCommands([
+    macosBundleLookup(bundlePath),
+    hostPs([
+      `111 8.5 12000 ${path.join(bundlePath, 'Contents', 'MacOS', 'ExampleExec')}`,
+      `222 1.5 5000 ${path.join(bundlePath, 'Contents', 'MacOS', 'ExampleExec')} --helper`,
+      '333 9.0 9999 /Applications/Other.app/Contents/MacOS/Other',
+    ]),
+  ]);
 
   try {
     const memory = await sampleAppleMemoryPerf(MACOS_DEVICE, 'com.example.app');
@@ -205,38 +192,14 @@ test('sampleAppleMemoryPerf aggregates host ps memory for macOS app bundle', asy
 
 test('sampleAppleMemoryPerf uses simctl spawn ps for iOS simulators', async () => {
   const tmpDir = await mkdtempForTest('agent-device-ios-sim-perf-');
-  const appPath = path.join(tmpDir, 'Example.app');
-  await fs.mkdir(appPath, { recursive: true });
-  await fs.writeFile(
-    path.join(appPath, 'Info.plist'),
-    [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<plist version="1.0"><dict>',
-      '<key>CFBundleExecutable</key><string>Example Sim Exec</string>',
-      '</dict></plist>',
-    ].join(''),
-    'utf8',
-  );
-
-  mockRunCmd.mockImplementation(async (cmd, args) => {
-    if (cmd === 'xcrun' && args.includes('get_app_container')) {
-      return { stdout: `${appPath}\n`, stderr: '', exitCode: 0 };
-    }
-    if (cmd === 'plutil') {
-      return { stdout: '', stderr: 'mock fallback', exitCode: 1 };
-    }
-    if (cmd === 'xcrun' && args.includes('spawn') && args.includes('ps')) {
-      return {
-        stdout: [
-          `111 12.0 8192 ${path.join(appPath, 'Example Sim Exec')}`,
-          '222 4.0 1024 SpringBoard',
-        ].join('\n'),
-        stderr: '',
-        exitCode: 0,
-      };
-    }
-    throw new Error(`unexpected command: ${cmd} ${args.join(' ')}`);
-  });
+  const appPath = await writeIosSimulatorApp(tmpDir, 'Example Sim Exec');
+  mockHostCommands([
+    iosSimulatorAppContainer(appPath),
+    simulatorPs([
+      `111 12.0 8192 ${path.join(appPath, 'Example Sim Exec')}`,
+      '222 4.0 1024 SpringBoard',
+    ]),
+  ]);
 
   try {
     const memory = await sampleAppleMemoryPerf(IOS_SIMULATOR, 'com.example.sim');
@@ -249,38 +212,16 @@ test('sampleAppleMemoryPerf uses simctl spawn ps for iOS simulators', async () =
 
 test('captureAppleMemorySnapshot records memgraph for iOS simulator processes', async () => {
   const tmpDir = await mkdtempForTest('agent-device-ios-sim-memgraph-');
-  const appPath = path.join(tmpDir, 'Example.app');
+  const appPath = await writeIosSimulatorApp(tmpDir, 'ExampleSimExec');
   const outPath = path.join(tmpDir, 'app.memgraph');
-  await fs.mkdir(appPath, { recursive: true });
-  await fs.writeFile(
-    path.join(appPath, 'Info.plist'),
-    [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<plist version="1.0"><dict>',
-      '<key>CFBundleExecutable</key><string>ExampleSimExec</string>',
-      '</dict></plist>',
-    ].join(''),
-    'utf8',
-  );
-
-  mockRunCmd.mockImplementation(async (cmd, args, options) => {
-    if (cmd === 'xcrun' && args.includes('get_app_container')) {
-      return { stdout: `${appPath}\n`, stderr: '', exitCode: 0 };
-    }
-    if (cmd === 'plutil') {
-      return { stdout: '', stderr: 'mock fallback', exitCode: 1 };
-    }
-    if (cmd === 'xcrun' && args.includes('ps')) {
-      return {
-        stdout: [
-          `111 1.0 8192 ${path.join(appPath, 'ExampleSimExec')}`,
-          `222 1.0 16384 ${path.join(appPath, 'ExampleSimExec')} --helper`,
-        ].join('\n'),
-        stderr: '',
-        exitCode: 0,
-      };
-    }
-    if (cmd === 'xcrun' && args.includes('leaks')) {
+  mockHostCommands([
+    iosSimulatorAppContainer(appPath),
+    simulatorPs([
+      `111 1.0 8192 ${path.join(appPath, 'ExampleSimExec')}`,
+      `222 1.0 16384 ${path.join(appPath, 'ExampleSimExec')} --helper`,
+    ]),
+    async (cmd, args, options) => {
+      if (cmd !== 'xcrun' || !args.includes('leaks')) return null;
       assert.equal(options?.timeoutMs, 120_000);
       assert.deepEqual(args, [
         'simctl',
@@ -291,10 +232,9 @@ test('captureAppleMemorySnapshot records memgraph for iOS simulator processes', 
         '222',
       ]);
       await fs.writeFile(outPath, 'memgraph-bytes', 'utf8');
-      return { stdout: '', stderr: '', exitCode: 0 };
-    }
-    throw new Error(`unexpected command: ${cmd} ${args.join(' ')}`);
-  });
+      return emptyRunResult();
+    },
+  ]);
 
   try {
     const snapshot = await captureAppleMemorySnapshot(IOS_SIMULATOR, 'com.example.sim', outPath);
@@ -311,41 +251,18 @@ test('captureAppleMemorySnapshot records memgraph for iOS simulator processes', 
 
 test('captureAppleMemorySnapshot records memgraph for macOS app processes', async () => {
   const tmpDir = await mkdtempForTest('agent-device-macos-memgraph-');
-  const bundlePath = path.join(tmpDir, 'Example.app');
+  const bundlePath = await writeMacosAppBundle(tmpDir, 'ExampleExec');
   const outPath = path.join(tmpDir, 'app.memgraph');
-  await fs.mkdir(path.join(bundlePath, 'Contents'), { recursive: true });
-  await fs.writeFile(
-    path.join(bundlePath, 'Contents', 'Info.plist'),
-    [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<plist version="1.0"><dict>',
-      '<key>CFBundleExecutable</key><string>ExampleExec</string>',
-      '</dict></plist>',
-    ].join(''),
-    'utf8',
-  );
-
-  mockRunCmd.mockImplementation(async (cmd, args) => {
-    if (cmd === 'mdfind') {
-      return { stdout: `${bundlePath}\n`, stderr: '', exitCode: 0 };
-    }
-    if (cmd === 'plutil') {
-      return { stdout: '', stderr: 'mock fallback', exitCode: 1 };
-    }
-    if (cmd === 'ps') {
-      return {
-        stdout: `111 1.0 12000 ${path.join(bundlePath, 'Contents', 'MacOS', 'ExampleExec')}`,
-        stderr: '',
-        exitCode: 0,
-      };
-    }
-    if (cmd === 'leaks') {
+  mockHostCommands([
+    macosBundleLookup(bundlePath),
+    hostPs([`111 1.0 12000 ${path.join(bundlePath, 'Contents', 'MacOS', 'ExampleExec')}`]),
+    async (cmd, args) => {
+      if (cmd !== 'leaks') return null;
       assert.deepEqual(args, [`--outputGraph=${outPath}`, '111']);
       await fs.writeFile(outPath, 'mac-memgraph-bytes', 'utf8');
-      return { stdout: '', stderr: '', exitCode: 0 };
-    }
-    throw new Error(`unexpected command: ${cmd} ${args.join(' ')}`);
-  });
+      return emptyRunResult();
+    },
+  ]);
 
   try {
     const snapshot = await captureAppleMemorySnapshot(MACOS_DEVICE, 'com.example.app', outPath);
@@ -361,40 +278,17 @@ test('captureAppleMemorySnapshot records memgraph for macOS app processes', asyn
 
 test('captureAppleMemorySnapshot removes partial memgraph when leaks exits nonzero', async () => {
   const tmpDir = await mkdtempForTest('agent-device-ios-memgraph-fail-');
-  const appPath = path.join(tmpDir, 'Example.app');
+  const appPath = await writeIosSimulatorApp(tmpDir, 'ExampleSimExec');
   const outPath = path.join(tmpDir, 'app.memgraph');
-  await fs.mkdir(appPath, { recursive: true });
-  await fs.writeFile(
-    path.join(appPath, 'Info.plist'),
-    [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<plist version="1.0"><dict>',
-      '<key>CFBundleExecutable</key><string>ExampleSimExec</string>',
-      '</dict></plist>',
-    ].join(''),
-    'utf8',
-  );
-
-  mockRunCmd.mockImplementation(async (cmd, args) => {
-    if (cmd === 'xcrun' && args.includes('get_app_container')) {
-      return { stdout: `${appPath}\n`, stderr: '', exitCode: 0 };
-    }
-    if (cmd === 'plutil') {
-      return { stdout: '', stderr: 'mock fallback', exitCode: 1 };
-    }
-    if (cmd === 'xcrun' && args.includes('ps')) {
-      return {
-        stdout: `111 1.0 8192 ${path.join(appPath, 'ExampleSimExec')}`,
-        stderr: '',
-        exitCode: 0,
-      };
-    }
-    if (cmd === 'xcrun' && args.includes('leaks')) {
+  mockHostCommands([
+    iosSimulatorAppContainer(appPath),
+    simulatorPs([`111 1.0 8192 ${path.join(appPath, 'ExampleSimExec')}`]),
+    async (cmd, args) => {
+      if (cmd !== 'xcrun' || !args.includes('leaks')) return null;
       await fs.writeFile(outPath, 'partial-memgraph', 'utf8');
       return { stdout: '', stderr: 'permission denied', exitCode: 1 };
-    }
-    throw new Error(`unexpected command: ${cmd} ${args.join(' ')}`);
-  });
+    },
+  ]);
 
   try {
     await assert.rejects(
@@ -409,35 +303,13 @@ test('captureAppleMemorySnapshot removes partial memgraph when leaks exits nonze
 
 test('captureAppleMemorySnapshot removes partial memgraph and hints when leaks times out', async () => {
   const tmpDir = await mkdtempForTest('agent-device-ios-memgraph-timeout-');
-  const appPath = path.join(tmpDir, 'Example.app');
+  const appPath = await writeIosSimulatorApp(tmpDir, 'ExampleSimExec');
   const outPath = path.join(tmpDir, 'app.memgraph');
-  await fs.mkdir(appPath, { recursive: true });
-  await fs.writeFile(
-    path.join(appPath, 'Info.plist'),
-    [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<plist version="1.0"><dict>',
-      '<key>CFBundleExecutable</key><string>ExampleSimExec</string>',
-      '</dict></plist>',
-    ].join(''),
-    'utf8',
-  );
-
-  mockRunCmd.mockImplementation(async (cmd, args) => {
-    if (cmd === 'xcrun' && args.includes('get_app_container')) {
-      return { stdout: `${appPath}\n`, stderr: '', exitCode: 0 };
-    }
-    if (cmd === 'plutil') {
-      return { stdout: '', stderr: 'mock fallback', exitCode: 1 };
-    }
-    if (cmd === 'xcrun' && args.includes('ps')) {
-      return {
-        stdout: `111 1.0 8192 ${path.join(appPath, 'ExampleSimExec')}`,
-        stderr: '',
-        exitCode: 0,
-      };
-    }
-    if (cmd === 'xcrun' && args.includes('leaks')) {
+  mockHostCommands([
+    iosSimulatorAppContainer(appPath),
+    simulatorPs([`111 1.0 8192 ${path.join(appPath, 'ExampleSimExec')}`]),
+    async (cmd, args) => {
+      if (cmd !== 'xcrun' || !args.includes('leaks')) return null;
       await fs.writeFile(outPath, 'partial-memgraph', 'utf8');
       throw new AppError('COMMAND_FAILED', 'xcrun timed out after 120000ms', {
         cmd,
@@ -447,9 +319,8 @@ test('captureAppleMemorySnapshot removes partial memgraph and hints when leaks t
         exitCode: -1,
         timeoutMs: 120_000,
       });
-    }
-    throw new Error(`unexpected command: ${cmd} ${args.join(' ')}`);
-  });
+    },
+  ]);
 
   try {
     await assert.rejects(
@@ -484,27 +355,11 @@ test('captureAppleMemorySnapshot reports physical iOS as unavailable', async () 
 
 test('captureAppleMemorySnapshot reports iOS simulator without process tools as unavailable', async () => {
   const tmpDir = await mkdtempForTest('agent-device-ios-sim-no-ps-');
-  const appPath = path.join(tmpDir, 'Example.app');
-  await fs.mkdir(appPath, { recursive: true });
-  await fs.writeFile(
-    path.join(appPath, 'Info.plist'),
-    [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<plist version="1.0"><dict>',
-      '<key>CFBundleExecutable</key><string>ExampleSimExec</string>',
-      '</dict></plist>',
-    ].join(''),
-    'utf8',
-  );
-
-  mockRunCmd.mockImplementation(async (cmd, args) => {
-    if (cmd === 'xcrun' && args.includes('get_app_container')) {
-      return { stdout: `${appPath}\n`, stderr: '', exitCode: 0 };
-    }
-    if (cmd === 'plutil') {
-      return { stdout: '', stderr: 'mock fallback', exitCode: 1 };
-    }
-    if (cmd === 'xcrun' && args.includes('ps')) {
+  const appPath = await writeIosSimulatorApp(tmpDir, 'ExampleSimExec');
+  mockHostCommands([
+    iosSimulatorAppContainer(appPath),
+    async (cmd, args) => {
+      if (!isSimulatorPs(cmd, args)) return null;
       throw new AppError(
         'COMMAND_FAILED',
         'The operation couldn’t be completed. No such file or directory',
@@ -517,9 +372,8 @@ test('captureAppleMemorySnapshot reports iOS simulator without process tools as 
           processExitError: true,
         },
       );
-    }
-    throw new Error(`unexpected command: ${cmd} ${args.join(' ')}`);
-  });
+    },
+  ]);
 
   try {
     const snapshot = await captureAppleMemorySnapshot(
@@ -538,41 +392,12 @@ test('captureAppleMemorySnapshot reports iOS simulator without process tools as 
 
 test('sampleAppleMemoryPerf falls back to host ps when simulator ps is unavailable', async () => {
   const tmpDir = await mkdtempForTest('agent-device-ios-sim-perf-');
-  const appPath = path.join(tmpDir, 'Example.app');
-  await fs.mkdir(appPath, { recursive: true });
-  await fs.writeFile(
-    path.join(appPath, 'Info.plist'),
-    [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<plist version="1.0"><dict>',
-      '<key>CFBundleExecutable</key><string>Example Sim Exec</string>',
-      '</dict></plist>',
-    ].join(''),
-    'utf8',
-  );
-
-  mockRunCmd.mockImplementation(async (cmd, args) => {
-    if (cmd === 'xcrun' && args.includes('get_app_container')) {
-      return { stdout: `${appPath}\n`, stderr: '', exitCode: 0 };
-    }
-    if (cmd === 'plutil') {
-      return { stdout: '', stderr: 'mock fallback', exitCode: 1 };
-    }
-    if (cmd === 'xcrun' && args.includes('spawn') && args.includes('ps')) {
-      return { stdout: '', stderr: 'No such file or directory', exitCode: 2 };
-    }
-    if (cmd === 'ps') {
-      return {
-        stdout: [
-          `111 12.0 8192 ${path.join(appPath, 'Example Sim Exec')}`,
-          '222 4.0 1024 SpringBoard',
-        ].join('\n'),
-        stderr: '',
-        exitCode: 0,
-      };
-    }
-    throw new Error(`unexpected command: ${cmd} ${args.join(' ')}`);
-  });
+  const appPath = await writeIosSimulatorApp(tmpDir, 'Example Sim Exec');
+  mockHostCommands([
+    iosSimulatorAppContainer(appPath),
+    simulatorPsUnavailable(),
+    hostPs([`111 12.0 8192 ${path.join(appPath, 'Example Sim Exec')}`, '222 4.0 1024 SpringBoard']),
+  ]);
 
   try {
     const memory = await sampleAppleMemoryPerf(IOS_SIMULATOR, 'com.example.sim');
@@ -659,39 +484,15 @@ test('sampleAppleFramePerf retries transient kperf lock failures', async () => {
 
 test('startAppleXctracePerfCapture attaches to an active iOS simulator app process', async () => {
   const tmpDir = await mkdtempForTest('agent-device-xctrace-sim-');
-  const appPath = path.join(tmpDir, 'Example.app');
+  const appPath = await writeIosSimulatorApp(tmpDir, 'Example Sim Exec');
   const tracePath = path.join(tmpDir, 'app.trace');
-  await fs.mkdir(appPath, { recursive: true });
-  await fs.writeFile(
-    path.join(appPath, 'Info.plist'),
-    [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<plist version="1.0"><dict>',
-      '<key>CFBundleExecutable</key><string>Example Sim Exec</string>',
-      '</dict></plist>',
-    ].join(''),
-    'utf8',
-  );
-
-  mockRunCmd.mockImplementation(async (cmd, args) => {
-    if (cmd === 'xcrun' && args.includes('get_app_container')) {
-      return { stdout: `${appPath}\n`, stderr: '', exitCode: 0 };
-    }
-    if (cmd === 'plutil') {
-      return { stdout: '', stderr: 'mock fallback', exitCode: 1 };
-    }
-    if (cmd === 'xcrun' && args.includes('spawn') && args.includes('ps')) {
-      return {
-        stdout: [
-          `111 12.0 8192 ${path.join(appPath, 'Example Sim Exec')}`,
-          '222 4.0 1024 SpringBoard',
-        ].join('\n'),
-        stderr: '',
-        exitCode: 0,
-      };
-    }
-    throw new Error(`unexpected command: ${cmd} ${args.join(' ')}`);
-  });
+  mockHostCommands([
+    iosSimulatorAppContainer(appPath),
+    simulatorPs([
+      `111 12.0 8192 ${path.join(appPath, 'Example Sim Exec')}`,
+      '222 4.0 1024 SpringBoard',
+    ]),
+  ]);
 
   try {
     const capture = await startAppleXctracePerfCapture({

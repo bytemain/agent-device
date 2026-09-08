@@ -39,13 +39,14 @@ import { makeSession } from '../../__tests__/test-utils/session-factories.ts';
 import { makeSessionStore } from '../../__tests__/test-utils/store-factory.ts';
 import { createTestDeviceInventoryGateways } from '../../__tests__/test-utils/device-inventory-gateways.ts';
 import { LeaseRegistry } from '../lease-registry.ts';
-import { activateCompleteRefFrame } from '../ref-frame.ts';
+import { activateCompleteRefFrame, refFrameState } from '../ref-frame.ts';
 import type { BindDeviceRuntime, InspectDeviceRuntimeFacts } from '../request-runtime-binding.ts';
 import type { GenericPlatformExecutionParams } from '../request-generic-dispatch.ts';
 import {
   readRequestedOrientation,
   resolveBoundOrientationRuntime,
 } from '../orientation-runtime.ts';
+import { expectRefusesUnavailableExactOwnerFact } from './runtime-binding-conformance.ts';
 import { createRequestHandler } from './test-device-runtime-gateway.ts';
 import { androidObservationFixture } from './android-observation-fixture.ts';
 
@@ -175,26 +176,11 @@ test('rejects an invalid rotation before inspection or binding', async () => {
 });
 
 test('rejects an unavailable exact-owner fact before binding', async () => {
-  const harness = runtimeHarness(unavailable);
-
-  const resolved = await resolveBoundOrientationRuntime({
+  await expectRefusesUnavailableExactOwnerFact({
+    command: 'orientation',
     device: testDevice,
-    positionals: ['landscape-left'],
-    inspectFacts: harness.inspectFacts,
-    bindDevice: harness.bindDevice,
+    unavailable,
   });
-
-  expect(resolved).toEqual({
-    ok: false,
-    response: {
-      ok: false,
-      error: {
-        code: 'UNSUPPORTED_OPERATION',
-        message: 'orientation is not supported on this device',
-      },
-    },
-  });
-  expect(harness.bindDevice).not.toHaveBeenCalled();
 });
 
 test('request router joins orientation admission to execution and ref invalidation', async () => {
@@ -235,7 +221,7 @@ test('request router joins orientation admission to execution and ref invalidati
       message: 'Rotated to landscape-left',
     },
   });
-  expect(session.refFrameState).toBe('expired');
+  expect(refFrameState(session)).toBe('expired');
   expect(harness.bind).toHaveBeenCalledTimes(1);
   expect(setOrientation).toHaveBeenCalledTimes(1);
 });

@@ -10,7 +10,8 @@ import {
 import type { BoundDeviceRuntime } from '@agent-device/contracts/platform-runtime';
 import type { SessionSurface } from '@agent-device/contracts/session';
 import type { DeviceInfo } from '@agent-device/kernel/device';
-import type { DaemonRequest, DaemonResponse, SessionScope, SessionState } from '../../types.ts';
+import type { DaemonRequest, DaemonResponse } from '../../daemon-request.ts';
+import type { SessionScope, SessionState } from '../../session-state.ts';
 import {
   abortAuthoringOnSecondOpen,
   armAuthoringOnOpen,
@@ -18,11 +19,11 @@ import {
 } from '../../session-script-publication-capability.ts';
 import { isRequestCanceled } from '@agent-device/host-kit/request';
 import { createRequestCanceledError } from '@agent-device/kernel/errors';
+import { SessionStore } from '../../session-store.ts';
 import {
   resolveSessionRequestLogPath,
   resolveSessionRunnerLogPath,
-  SessionStore,
-} from '../../session-store.ts';
+} from '../../session-artifact-paths.ts';
 import {
   countConfiguredRuntimeHints,
   runtimeHintValues,
@@ -49,12 +50,16 @@ import {
   abandonDeviceClaim,
   acquireDeviceClaim,
   clearDeviceClaim,
-  isLocalDeviceClaimTarget,
   type DeviceClaimAcquireResult,
   type DeviceClaimSessionOwnership,
   type DeviceClaimReconciler,
 } from '../../device-claims.ts';
-import { buildDeviceClaimConflictError } from '../../device-claim-conflict.ts';
+import {
+  buildAllocatorHeldRefusal,
+  buildDeviceClaimConflictError,
+} from '../../device-claim-conflict.ts';
+import { requireAllocatorHeldDeviceClaim } from '../../device-claim-allocator.ts';
+import { deviceClaimRuleForOwner } from '../../device-claim-rule.ts';
 
 type OpenTiming = {
   totalDurationMs?: number;
@@ -357,23 +362,47 @@ function findNewSessionDeviceConflict(params: {
   return buildDeviceInUseBySessionError(inUse, device);
 }
 
-async function acquireLocalDeviceClaim(params: {
+async function acquireDeviceClaimForOwner(params: {
   req: DaemonRequest;
   device: DeviceInfo;
   owner: OpenApplicationRuntime['owner'];
   sessionName: string;
   sessionStore: SessionStore;
   reconcileOrphanedDeviceClaim: DeviceClaimReconciler;
-}): Promise<DeviceClaimAcquireResult | { status: 'not-required' }> {
+}): Promise<
+  | DeviceClaimAcquireResult
+  | { status: 'not-required' }
+  | { status: 'refused'; response: DaemonResponse }
+> {
   const { req, device, owner, sessionName, sessionStore, reconcileOrphanedDeviceClaim } = params;
-  if (!isLocalDeviceClaimTarget(owner)) return { status: 'not-required' };
-  return await acquireDeviceClaim({
-    device,
-    session: sessionName,
-    workspace: req.meta?.cwd ?? process.cwd(),
-    stateDir: sessionStore.resolveDaemonStateDir(),
-    reconcileOrphanedDeviceClaim,
-  });
+  switch (deviceClaimRuleForOwner(owner)) {
+    case 'none':
+      return { status: 'not-required' };
+    case 'allocator-held': {
+      // Session open binds ordinarily, so this literal is the truth of the route and not a
+      // placeholder: the Host open route replaces it with the request's exact intent when it
+      // lands. Until then a managed owner reaches here without a fence and is always refused.
+      const response = buildAllocatorHeldRefusal(
+        device,
+        owner,
+        requireAllocatorHeldDeviceClaim({
+          device,
+          owner,
+          stateDir: sessionStore.resolveDaemonStateDir(),
+          intent: { kind: 'ordinary' },
+        }),
+      );
+      return response ? { status: 'refused', response } : { status: 'not-required' };
+    }
+    case 'ordinary':
+      return await acquireDeviceClaim({
+        device,
+        session: sessionName,
+        workspace: req.meta?.cwd ?? process.cwd(),
+        stateDir: sessionStore.resolveDaemonStateDir(),
+        reconcileOrphanedDeviceClaim,
+      });
+  }
 }
 
 export async function openNewSessionWithDeviceClaim(params: {
@@ -409,7 +438,7 @@ export async function openNewSessionWithDeviceClaim(params: {
   const conflict = findNewSessionDeviceConflict({ req, device, sessionStore });
   if (conflict) return conflict;
 
-  const localClaim = await acquireLocalDeviceClaim({
+  const ownerClaim = await acquireDeviceClaimForOwner({
     req,
     device,
     owner: lifecycle.owner,
@@ -417,9 +446,10 @@ export async function openNewSessionWithDeviceClaim(params: {
     sessionStore,
     reconcileOrphanedDeviceClaim,
   });
-  if (localClaim.status === 'conflict')
-    return buildDeviceClaimConflictError(device, localClaim.conflict);
-  const deviceClaim = localClaim.status === 'acquired' ? localClaim.ownership : undefined;
+  if (ownerClaim.status === 'conflict')
+    return buildDeviceClaimConflictError(device, ownerClaim.conflict);
+  if (ownerClaim.status === 'refused') return ownerClaim.response;
+  const deviceClaim = ownerClaim.status === 'acquired' ? ownerClaim.ownership : undefined;
   const effects: NewSessionOpenEffects = { mayHaveStarted: false };
   const rollbackClaim = async () =>
     await rollbackNewSessionClaim({

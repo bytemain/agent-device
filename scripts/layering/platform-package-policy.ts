@@ -36,8 +36,6 @@ const COMPOSITION_FILES = new Set([COMPOSITION_FILE, REQUEST_PROVIDER_COMPOSITIO
 const RULE = 'R13 platform-package-substrate';
 const RAW_PROCESS_SPECIFIERS = new Set(['child_process', 'node:child_process']);
 const PLATFORM_RUNTIME_HOST_FILES = new Set([
-  'src/platform-runtime-app-inventory-host.ts',
-  'src/platform-runtime-app-state-host.ts',
   'src/platform-runtime-audio-probe-host.ts',
   'src/platform-runtime-host-diagnostics.ts',
   'src/platform-runtime-managed-web-backend.ts',
@@ -87,6 +85,7 @@ const MECHANICS_FACET_SUBPATHS: Readonly<Partial<Record<PlatformFamily, readonly
     '@agent-device/platform-apple/physical-device',
     '@agent-device/platform-apple/runner-owner',
     '@agent-device/platform-apple/runner/operations',
+    '@agent-device/platform-apple/snapshot-source',
     '@agent-device/platform-apple/simctl',
     '@agent-device/platform-apple/simulator',
     '@agent-device/platform-apple/tool-provider',

@@ -1,5 +1,5 @@
 import { test, expect, vi, beforeEach } from 'vitest';
-import type { SessionState } from '../types.ts';
+import type { SessionState } from '../session-state.ts';
 
 import {
   resolveCommandDevice,
@@ -9,6 +9,7 @@ import {
 import { getRunnerSessionSnapshot } from '@agent-device/platform-apple/runner/operations';
 import { resolveTargetDevice } from '../../core/dispatch-resolve.ts';
 import { isActiveProviderDevice } from '../../provider-device-runtime.ts';
+import { ensureDeviceReady } from '../device-ready.ts';
 
 vi.mock('@agent-device/platform-apple/runner/operations', () => ({
   getRunnerSessionSnapshot: vi.fn(async () => null),
@@ -26,6 +27,7 @@ vi.mock('../device-ready.ts', () => ({
 const mockGetRunnerSessionSnapshot = vi.mocked(getRunnerSessionSnapshot);
 const mockResolveTargetDevice = vi.mocked(resolveTargetDevice);
 const mockIsActiveProviderDevice = vi.mocked(isActiveProviderDevice);
+const mockEnsureDeviceReady = vi.mocked(ensureDeviceReady);
 
 beforeEach(() => {
   mockGetRunnerSessionSnapshot.mockReset();
@@ -33,6 +35,8 @@ beforeEach(() => {
   mockResolveTargetDevice.mockReset();
   mockIsActiveProviderDevice.mockReset();
   mockIsActiveProviderDevice.mockReturnValue(false);
+  mockEnsureDeviceReady.mockReset();
+  mockEnsureDeviceReady.mockResolvedValue(undefined);
 });
 
 const iosSimulatorSession: SessionState = {
@@ -73,12 +77,21 @@ test('resolveCommandDevice keeps an existing session for a platform-only filter'
       await resolveCommandDevice({
         session: iosSimulatorSession,
         flags: { platform: 'ios' },
-        ensureReady: false,
       }),
   );
 
   expect(device).toBe(iosSimulatorSession.device);
   expect(mockResolveTargetDevice).not.toHaveBeenCalled();
+});
+
+test('resolveCommandDevice does not prepare a sessionless device', async () => {
+  const device = { ...iosSimulatorSession.device, id: 'sessionless-sim' };
+  mockResolveTargetDevice.mockResolvedValue(device);
+
+  await resolveCommandDevice({ session: undefined, flags: { platform: 'ios' } });
+
+  expect(mockResolveTargetDevice).toHaveBeenCalledOnce();
+  expect(mockEnsureDeviceReady).not.toHaveBeenCalled();
 });
 
 test('refreshSessionDeviceIfNeeded keeps provider-owned iOS simulators out of local refresh', async () => {
@@ -96,7 +109,11 @@ test('refreshSessionDeviceIfNeeded keeps provider-owned iOS simulators out of lo
 });
 
 test('refreshSessionDeviceIfNeeded skips re-resolve while the iOS runner session is alive', async () => {
-  mockGetRunnerSessionSnapshot.mockResolvedValue({ sessionId: 'sim-1:1234:1', alive: true });
+  mockGetRunnerSessionSnapshot.mockResolvedValue({
+    sessionId: 'sim-1:1234:1',
+    alive: true,
+    ready: true,
+  });
 
   const device = await withMockedPlatform('darwin', async () =>
     refreshSessionDeviceIfNeeded(iosSimulatorSession.device),
@@ -107,7 +124,11 @@ test('refreshSessionDeviceIfNeeded skips re-resolve while the iOS runner session
 });
 
 test('refreshSessionDeviceIfNeeded re-resolves when the iOS runner session is gone', async () => {
-  mockGetRunnerSessionSnapshot.mockResolvedValue({ sessionId: 'sim-1:1234:1', alive: false });
+  mockGetRunnerSessionSnapshot.mockResolvedValue({
+    sessionId: 'sim-1:1234:1',
+    alive: false,
+    ready: false,
+  });
   const resolved = { ...iosSimulatorSession.device, booted: true, name: 'renamed' };
   mockResolveTargetDevice.mockResolvedValue(resolved);
 
