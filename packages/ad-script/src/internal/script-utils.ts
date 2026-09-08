@@ -1,7 +1,19 @@
 import type { SessionAction } from '@agent-device/contracts/session';
-import { isSessionRuntimePlatform, type SessionRuntimeHints } from '@agent-device/kernel/contracts';
+import type { SessionRuntimeHints } from '@agent-device/kernel/contracts';
 import { appendScreenshotScriptFlags } from '@agent-device/contracts/capture';
 import { splitRefGenerationSuffix } from '@agent-device/kernel/snapshot';
+
+const SCRIPT_RUNTIME_PLATFORMS = {
+  ios: true,
+  android: true,
+  harmonyos: true,
+} satisfies Record<NonNullable<SessionRuntimeHints['platform']>, true>;
+
+function isScriptRuntimePlatform(
+  value: unknown,
+): value is NonNullable<SessionRuntimeHints['platform']> {
+  return typeof value === 'string' && Object.hasOwn(SCRIPT_RUNTIME_PLATFORMS, value);
+}
 
 /**
  * #1076 versioned refs: a recorded ref positional may carry a `~s<generation>`
@@ -168,7 +180,7 @@ export function appendRuntimeHintFlags(
   flags: Pick<SessionAction, 'flags'>['flags'] | SessionRuntimeHints | undefined,
 ): void {
   if (!flags) return;
-  if (isSessionRuntimePlatform(flags.platform)) {
+  if (isScriptRuntimePlatform(flags.platform)) {
     parts.push('--platform', flags.platform);
   }
   if (typeof flags.metroHost === 'string' && flags.metroHost.length > 0) {
@@ -325,7 +337,7 @@ export function parseReplayRuntimeFlags(args: string[]): {
     const nextArg = args[index + 1];
     if (token === '--platform' && nextArg !== undefined) {
       const platform = nextArg;
-      if (isSessionRuntimePlatform(platform)) {
+      if (isScriptRuntimePlatform(platform)) {
         flags.platform = platform;
       }
       index += 1;

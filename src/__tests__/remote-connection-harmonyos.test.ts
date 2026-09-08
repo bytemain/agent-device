@@ -3,12 +3,28 @@ import fs from 'node:fs';
 import {
   connectionWorkspace,
   createTestClient,
+  forceConnectFlags,
   seedConnectionState,
 } from './remote-connection.fixtures.ts';
-import { materializeRemoteConnectionForCommand } from '../cli/commands/connection-runtime.ts';
+import {
+  materializeRemoteConnectionForCommand,
+  resolveRequestedLeaseBackend,
+} from '../cli/commands/connection-runtime.ts';
 import { disconnectCommand } from '../cli/commands/connection.ts';
 import { readRemoteConnectionState } from '../remote/remote-connection-state.ts';
 import { LeaseRegistry } from '../daemon/lease-registry.ts';
+
+test('HarmonyOS platform resolves to its proxy lease backend', () => {
+  expect(
+    resolveRequestedLeaseBackend(
+      forceConnectFlags({
+        stateDir: '/tmp/agent-device',
+        remoteConfig: '/tmp/remote.json',
+        platform: 'harmonyos',
+      }),
+    ),
+  ).toBe('harmonyos-instance');
+});
 
 test.each(['apple', 'harmonyos', 'ios', 'android'] as const)(
   'stored Harmony runtime compatibility respects %s selection',
